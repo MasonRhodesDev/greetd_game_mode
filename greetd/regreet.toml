@@ -1,0 +1,40 @@
+# ReGreet configuration file
+
+# Theme settings
+[theme]
+# Use dark mode
+dark_mode = true
+
+# Custom CSS file
+style = "/etc/greetd/regreet.css"
+
+# Background image settings
+background = "/etc/greetd/bg.png"
+background_fit = "cover"  # Options: "cover", "contain", "fill", "none"
+
+# Clock settings
+[clock]
+enabled = true
+format = "%H:%M"
+font = "Roboto 48"
+
+# Greeting message
+greeting = "Welcome to Game Mode"
+
+# Environment variables for the session
+[env]
+XDG_SESSION_TYPE = "wayland"
+XDG_SESSION_CLASS = "user"
+XDG_SESSION_DESKTOP = "hyprland"
+
+# Commands for system control
+[commands]
+reboot = ["loginctl", "reboot"]
+poweroff = ["loginctl", "poweroff"]
+
+# Multi-monitor settings
+[display]
+# Show on all monitors
+all_monitors = true
+# Center the login box
+center = true 
