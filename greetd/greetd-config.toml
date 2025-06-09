@@ -1,7 +1,0 @@
-[default_session]
-command = "sway --config /etc/greetd/sway-config"
-user = "greeter"
-
-[initial_session]
-command = "/etc/greetd/game_mode"
-user = "greeter" 

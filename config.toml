@@ -1,0 +1,26 @@
+[paths]
+# Base directory for all operations. Set to empty string for real system paths
+# virtual_root = "./tmp"
+virtual_root = ""
+# Default paths relative to virtual_root (or absolute if virtual_root is empty)
+greetd_dir = "/etc/greetd"
+config_file = "config.toml"
+game_mode_config = "game_mode_login.toml"
+
+[service]
+# Service name to restart after config changes
+name = "greetd"
+# Command to restart the service
+restart_command = "systemctl restart greetd"
+
+[game_mode]
+# Time in seconds to wait before switching back from game mode
+switch_back_delay = 2
+# Whether to enable debug logging
+debug = true
+
+[permissions]
+# User that should have access to the greetd directory
+greeter_user = "greeter"
+# Groups the greeter user should be added to
+required_groups = ["input", "video"]

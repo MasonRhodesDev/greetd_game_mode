@@ -6,14 +6,17 @@ authors = ["Your Name <your.email@example.com>"]
 description = "A greetd background service for handling gamepad input"
 
 [dependencies]
-gilrs = "0.10.6"
-log = "0.4"
-env_logger = "0.10"
 anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 dialoguer = "0.11"
-console = "0.15"
+env_logger = "0.10"
+gilrs = "0.10"
 indicatif = "0.17"
 ctrlc = "3.4"
 libc = "0.2"
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+log = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "time"] }
+tracing-appender = "0.2"
