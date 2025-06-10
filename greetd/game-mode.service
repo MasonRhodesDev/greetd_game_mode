@@ -2,6 +2,7 @@
 Description=Game Mode Service
 After=greetd.service
 Wants=greetd.service
+BindsTo=greetd.service
 
 [Service]
 Type=simple
@@ -22,4 +23,4 @@ Environment=RUST_BACKTRACE=1
 SupplementaryGroups=input video
 
 [Install]
-WantedBy=multi-user.target 
+WantedBy=greetd.service 
