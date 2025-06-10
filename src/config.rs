@@ -9,6 +9,9 @@ pub const GAME_MODE_CONFIG: &str = "game_mode_login.toml";
 pub const GREETER_USER: &str = "greeter";
 pub const REQUIRED_GROUPS: &[&str] = &["input", "video"];
 pub const VT_NUMBER: u32 = 1;
+pub const GAMES_USER: &str = "games";
+pub const GAMES_GROUP: &str = "games";
+pub const GAMES_DIR: &str = "/games";
 
 // Game mode configuration
 pub const DEBUG_MODE: bool = true;

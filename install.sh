@@ -22,6 +22,22 @@ eval "$(target/release/generate_constants)"
 
 echo "Installing game_mode..."
 
+# Set up games user and group
+echo "Setting up games user and group..."
+if ! getent group "$GAMES_GROUP" >/dev/null; then
+    sudo groupadd "$GAMES_GROUP"
+fi
+
+if ! getent passwd "$GAMES_USER" >/dev/null; then
+    sudo useradd -m -g "$GAMES_GROUP" -s /bin/bash "$GAMES_USER"
+fi
+
+# Set up games directory
+echo "Setting up games directory..."
+sudo mkdir -p "$GAMES_DIR"
+sudo chgrp -R "$GAMES_GROUP" "$GAMES_DIR"
+sudo chmod -R g+rwxs "$GAMES_DIR"
+
 # Set group ownership and permissions for /etc/greetd
 sudo mkdir -p "$GREETD_DIR/logs"
 sudo mkdir -p /usr/local/bin

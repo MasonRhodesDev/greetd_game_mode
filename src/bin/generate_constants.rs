@@ -8,4 +8,7 @@ fn main() {
     println!("VT_NUMBER={}", VT_NUMBER);
     println!("DEBUG_MODE={}", DEBUG_MODE);
     println!("REQUIRED_GROUPS=({})", REQUIRED_GROUPS.join(" "));
+    println!("GAMES_USER='{}'", GAMES_USER);
+    println!("GAMES_GROUP='{}'", GAMES_GROUP);
+    println!("GAMES_DIR='{}'", GAMES_DIR);
 } 
