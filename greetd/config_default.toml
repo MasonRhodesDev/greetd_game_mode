@@ -1,5 +1,5 @@
 [terminal]
-vt = 1
+vt = {{vt}}
 
 [default_session]
 command = "Hyprland --config /etc/greetd/hypr.conf"

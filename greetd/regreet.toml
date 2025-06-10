@@ -3,7 +3,7 @@
 # Theme settings
 [theme]
 # Use dark mode
-dark_mode = true
+dark_mode = false
 
 # Custom CSS file
 style = "/etc/greetd/regreet.css"

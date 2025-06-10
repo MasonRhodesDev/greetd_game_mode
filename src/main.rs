@@ -1,11 +1,10 @@
 mod config;
-mod installer;
 mod game_mode_switch;
+mod paths;
 
 use anyhow::Result;
-use dialoguer::{theme::ColorfulTheme, Select};
 use gilrs::{Button, Event, Gilrs};
-use tracing::{info, error, debug, warn};
+use tracing::{info, error, debug};
 use std::{
     env,
     fs,
@@ -13,100 +12,17 @@ use std::{
     sync::Arc,
     time::Duration,
     process::Command,
-    path::PathBuf,
-    io::Write,
 };
 use crate::config::Config;
 
-static RUNNING: AtomicBool = AtomicBool::new(true);
-
-fn get_lock_file_path() -> Result<PathBuf> {
-    let config = Config::load()?;
-    Ok(config.get_greetd_dir().join("game-mode.lock"))
-}
-
-fn write_pid_to_lock_file(pid: u32) -> Result<()> {
-    let config = Config::load()?;
-    let lock_file = get_lock_file_path()?;
-    let mut file = fs::File::create(&lock_file)?;
-    file.write_all(pid.to_string().as_bytes())?;
-    
-    // Ensure the lock file has the correct permissions
-    if !config.is_virtual_mode() {
-        let greeter_user = &config.permissions.greeter_user;
-        Command::new("sudo")
-            .args(["chown", &format!("{}:{}", greeter_user, greeter_user), lock_file.to_str().unwrap()])
-            .status()?;
-    }
-    Ok(())
-}
-
-fn read_pid_from_lock_file() -> Result<Option<u32>> {
-    let lock_file = get_lock_file_path()?;
-    if !lock_file.exists() {
-        return Ok(None);
-    }
-    
-    let pid_str = fs::read_to_string(&lock_file)?;
-    match pid_str.trim().parse::<u32>() {
-        Ok(pid) => Ok(Some(pid)),
-        Err(_) => Ok(None)
-    }
-}
-
-fn is_process_running(pid: u32) -> bool {
-    Command::new("sudo")
-        .args(["ps", "-p", &pid.to_string()])
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
-}
-
-fn kill_existing_processes() -> Result<()> {
-    // Get the current process ID
-    let current_pid = std::process::id();
-    info!("Current process ID: {}", current_pid);
-    
-    // Check if there's a lock file with a running process
-    if let Some(existing_pid) = read_pid_from_lock_file()? {
-        if existing_pid != current_pid && is_process_running(existing_pid) {
-            info!("Found existing game-mode process with PID {}", existing_pid);
-            info!("Terminating existing process to take over as singleton");
-            
-            let status = Command::new("sudo")
-                .args(["kill", "-9", &existing_pid.to_string()])
-                .status();
-            
-            match status {
-                Ok(status) if status.success() => {
-                    info!("Successfully terminated existing process {}", existing_pid);
-                }
-                Ok(_) => {
-                    warn!("Failed to terminate process {} (process may have already terminated)", existing_pid);
-                }
-                Err(e) => {
-                    warn!("Error terminating process {}: {}", existing_pid, e);
-                }
-            }
-        }
-    }
-    
-    // Write our PID to the lock file
-    write_pid_to_lock_file(current_pid)?;
-    info!("Registered as the active game-mode instance (PID: {})", current_pid);
-    Ok(())
-}
-
-fn is_greetd_environment() -> bool {
-    env::args().any(|arg| arg == "--greetd")
-}
-
-fn is_install() -> bool {
-    env::args().any(|arg| arg == "--install")
-}
-
 fn setup_logging() -> Result<()> {
-    let config = crate::config::Config::load()?;
+    let config = match crate::config::Config::load() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Failed to load config: {}", e);
+            return Err(e.into());
+        }
+    };
     
     // Create a subscriber that always logs to stdout
     let subscriber = tracing_subscriber::fmt()
@@ -127,12 +43,15 @@ fn setup_logging() -> Result<()> {
         .with_timer(tracing_subscriber::fmt::time::UtcTime::rfc_3339())
         .finish();
 
-    tracing::subscriber::set_global_default(subscriber)?;
+    if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+        eprintln!("Failed to set global subscriber: {}", e);
+        return Err(e.into());
+    }
 
     // Try to set up file logging, but don't fail if we can't
     let log_dir = config.get_greetd_dir().join("logs");
     if let Err(e) = fs::create_dir_all(&log_dir) {
-        println!("Could not create log directory: {}", e);
+        eprintln!("Could not create log directory: {}", e);
     } else if !config.is_virtual_mode() {
         // Try to set permissions, but don't fail if we can't
         let greeter_user = &config.permissions.greeter_user;
@@ -140,17 +59,35 @@ fn setup_logging() -> Result<()> {
             .args(["-R", &format!("{}:{}", greeter_user, greeter_user), log_dir.to_str().unwrap()])
             .status() 
         {
-            println!("Could not set log directory permissions: {}", e);
+            eprintln!("Could not set log directory permissions: {}", e);
         }
     }
 
     Ok(())
 }
 
+fn is_user_logged_in_on_tty(tty: &str) -> Result<bool> {
+    let output = Command::new("who")
+        .output()?;
+    let who_output = String::from_utf8_lossy(&output.stdout);
+    debug!("who command output: {}", who_output);
+    debug!("Checking for users on TTY: {}", tty);
+    
+    let result = who_output.lines().any(|line| {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        debug!("Checking line: {:?}", parts);
+        // Only check if this line has a TTY matching our target and is not greetd
+        let matches = parts.len() >= 2 && parts[1] == tty && !line.contains("greetd");
+        debug!("Line matches: {}", matches);
+        matches
+    });
+    debug!("Final result for TTY {}: {}", tty, result);
+    Ok(result)
+}
+
 fn run_game_mode() -> Result<()> {
     // Logging is already initialized in main()
     info!("Starting game mode service");
-    debug!("Running in greetd environment: {}", is_greetd_environment());
 
     // Initialize gamepad support
     let mut gilrs = Gilrs::new().map_err(|e| {
@@ -176,105 +113,77 @@ fn run_game_mode() -> Result<()> {
 
     // Track if menu button has been pressed
     let menu_pressed = Arc::new(AtomicBool::new(false));
-    let menu_pressed_clone = menu_pressed.clone();
+    let _menu_pressed_clone = menu_pressed.clone();
+
+    // Get greetd TTY
+    let config = Config::load()?;
+    let greetd_tty = format!("tty{}", config.terminal.vt);
+    info!("Greetd running on {}", greetd_tty);
 
     // Main event loop
     while running.load(Ordering::SeqCst) {
         // Process gamepad events
-        while let Some(Event { id, event, .. }) = gilrs.next_event() {
-            let gamepad = gilrs.gamepad(id);
-            debug!("Received event from {}: {:?}", gamepad.name(), event);
-            
+        while let Some(Event { id, event, time }) = gilrs.next_event() {
+            debug!("Gamepad event: {:?}", event);
+            if is_user_logged_in_on_tty(&greetd_tty)? {
+                debug!("User logged in on greetd TTY {}, ignoring gamepad events", greetd_tty);
+                std::thread::sleep(Duration::from_millis(1000));
+                continue;
+            }
             match event {
-                gilrs::EventType::ButtonPressed(button, value) => {
-                    info!("Button pressed on {}: {:?} (value: {})", gamepad.name(), button, value);
-                    if button == Button::Mode && !menu_pressed.load(Ordering::SeqCst) {
-                        info!("Guide/Home button pressed on {}", gamepad.name());
+                gilrs::EventType::ButtonPressed(Button::Mode, _) => {
+                    if !menu_pressed.load(Ordering::SeqCst) {
                         menu_pressed.store(true, Ordering::SeqCst);
-                        if let Err(e) = game_mode_switch::switch_to_game_mode() {
-                            error!("Failed to switch to game mode: {}", e);
-                        }
+                        info!("Menu button pressed");
                     }
                 }
-                gilrs::EventType::ButtonReleased(button, value) => {
-                    info!("Button released on {}: {:?} (value: {})", gamepad.name(), button, value);
-                }
-                gilrs::EventType::AxisChanged(axis, value, _) => {
-                    debug!("Axis changed on {}: {:?} (value: {})", gamepad.name(), axis, value);
+                gilrs::EventType::ButtonReleased(Button::Mode, _) => {
+                    menu_pressed.store(false, Ordering::SeqCst);
+                    game_mode_switch::switch_to_game_mode()?;
                 }
                 _ => {}
             }
         }
-
-        // Small sleep to prevent high CPU usage
         std::thread::sleep(Duration::from_millis(10));
     }
 
-    info!("Exiting game mode service");
     Ok(())
 }
 
-fn show_installer_menu() -> Result<()> {
-    let options = vec!["Install", "Uninstall", "Test Gamepad", "Exit"];
-    let selection = Select::with_theme(&ColorfulTheme::default())
-        .with_prompt("Select an option")
-        .items(&options)
-        .default(0)
-        .interact()?;
+fn in_game_mode() -> Result<bool> {
+    let config = crate::config::Config::load()?;
+    let config_path = config.get_config_path();
+    let game_mode_path = config.get_game_mode_config_path();
 
-    let mut installer = installer::Installer::new()?;
-
-    match selection {
-        0 => {
-            installer.install()?;
-        }
-        1 => {
-            if !installer.is_installed() {
-                println!("Game mode is not installed!");
-                return Ok(());
-            }
-            installer.uninstall()?;
-        }
-        2 => {
-            println!("\nTesting gamepad input. Press Ctrl+C to exit.");
-            run_game_mode()?;
-        }
-        3 => return Ok(()),
-        _ => unreachable!(),
+    // Check if config_path is a symlink
+    if !config_path.is_symlink() {
+        return Ok(false);
     }
 
-    Ok(())
+    // Get the target of the symlink
+    let target = fs::read_link(config_path)?;
+    Ok(target == game_mode_path)
 }
 
 fn main() -> Result<()> {
     // Initialize logging first thing
-    setup_logging()?;
+    if let Err(e) = setup_logging() {
+        eprintln!("Failed to setup logging: {}", e);
+        return Err(e.into());
+    }
     info!("Game mode service starting");
-    debug!("Environment check: greetd mode: {}", is_greetd_environment());
-    
-    // Kill any existing game-mode processes
-    if let Err(e) = kill_existing_processes() {
-        error!("Failed to kill existing processes: {}", e);
+
+    // Always reset to desktop mode on startup
+    if let Err(e) = game_mode_switch::switch_to_desktop_mode() {
+        eprintln!("Failed to reset to desktop mode: {}", e);
+        return Err(e.into());
     }
-    
-    if is_install() {
-        info!("Running install");
-        let mut installer = installer::Installer::new()?;
-        // Always uninstall first to ensure clean state
-        if installer.is_installed() {
-            installer.uninstall()?;
-        }
-        installer.install()?;
-        return Ok(());
+
+    if let Err(e) = run_game_mode() {
+        eprintln!("Failed to run game mode: {}", e);
+        return Err(e.into());
     }
-    
-    if is_greetd_environment() {
-        info!("Running in greetd environment");
-        run_game_mode()?;
-    } else {
-        info!("Running in installer mode");
-        show_installer_menu()?;
-    }
+
     info!("Game mode service exiting");
     Ok(())
 }

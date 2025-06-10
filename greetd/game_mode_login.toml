@@ -1,5 +1,5 @@
 [terminal]
-vt = 1
+vt = {{vt}}
 [default_session]
 command = "gamescope-session-plus steam"
 user = "games"
