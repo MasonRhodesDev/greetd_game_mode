@@ -14,6 +14,7 @@ use std::{
     process::Command,
 };
 use crate::config::Config;
+use serde_json::Value;
 
 fn setup_logging() -> Result<()> {
     let config = match crate::config::Config::load() {
@@ -67,21 +68,46 @@ fn setup_logging() -> Result<()> {
 }
 
 fn is_user_logged_in_on_tty(tty: &str) -> Result<bool> {
-    let output = Command::new("who")
+    let output = Command::new("loginctl")
+        .arg("-j")
+        .arg("list-sessions")
         .output()?;
-    let who_output = String::from_utf8_lossy(&output.stdout);
-    debug!("who command output: {}", who_output);
-    debug!("Checking for users on TTY: {}", tty);
+    let sessions: Vec<Value> = serde_json::from_slice(&output.stdout)?;
+    debug!("loginctl sessions: {}", serde_json::to_string_pretty(&sessions)?);
     
-    let result = who_output.lines().any(|line| {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        debug!("Checking line: {:?}", parts);
-        // Only check if this line has a TTY matching our target and is not greetd
-        let matches = parts.len() >= 2 && parts[1] == tty && !line.contains("greetd");
-        debug!("Line matches: {}", matches);
-        matches
+    // Check if there are any non-greeter sessions on the specified TTY
+    let result = sessions.iter().any(|session| {
+        let user = session["user"].as_str().unwrap_or("");
+        let session_tty = session["tty"].as_str().unwrap_or("");
+        let is_non_greeter = user != "greeter";
+        let is_on_target_tty = session_tty == tty;
+        debug!("Session user: {}, tty: {}, is_non_greeter: {}, is_on_target_tty: {}", 
+            user, session_tty, is_non_greeter, is_on_target_tty);
+        is_non_greeter && is_on_target_tty
     });
-    debug!("Final result for TTY {}: {}", tty, result);
+    debug!("User logged in on TTY {}: {}", tty, result);
+    Ok(result)
+}
+
+fn is_greeter_active() -> Result<bool> {
+    let output = Command::new("loginctl")
+        .arg("-j")
+        .arg("list-sessions")
+        .output()?;
+    let sessions: Vec<Value> = serde_json::from_slice(&output.stdout)?;
+    debug!("loginctl sessions: {}", serde_json::to_string_pretty(&sessions)?);
+    
+    // Check if greeter session exists and is on the correct TTY
+    let result = sessions.iter().any(|session| {
+        let user = session["user"].as_str().unwrap_or("");
+        let tty = session["tty"].as_str().unwrap_or("");
+        let is_greeter = user == "greeter";
+        let has_tty = !tty.is_empty() && tty != "-";
+        debug!("Session user: {}, tty: {}, is_greeter: {}, has_tty: {}", 
+            user, tty, is_greeter, has_tty);
+        is_greeter && has_tty
+    });
+    debug!("Greeter active: {}", result);
     Ok(result)
 }
 
@@ -157,11 +183,20 @@ fn run_game_mode() -> Result<()> {
                 }
             }
 
-            if is_user_logged_in_on_tty(&greetd_tty)? {
-                debug!("User logged in on greetd TTY {}, ignoring gamepad events", greetd_tty);
+            // Check if we're in the greeter session
+            if !is_greeter_active()? {
+                debug!("Greeter is not active, ignoring gamepad events");
                 std::thread::sleep(Duration::from_millis(1000));
                 continue;
             }
+
+            // Check if any non-greeter user is logged in
+            if is_user_logged_in_on_tty(&greetd_tty)? {
+                debug!("Non-greeter user logged in, ignoring gamepad events");
+                std::thread::sleep(Duration::from_millis(1000));
+                continue;
+            }
+
             match event {
                 gilrs::EventType::ButtonPressed(Button::Mode, _) => {
                     if !menu_pressed.load(Ordering::SeqCst) {
