@@ -21,7 +21,7 @@ sudo chmod g+rwxs "$GREETD_DIR"
 
 # Create sudoers file for greetd service restart
 echo "Configuring sudoers..."
-SUDOERS_CONTENT="$GREETER_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart greetd.service"
+SUDOERS_CONTENT="$GREETER_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart greetd.service, /usr/bin/fgconsole"
 echo "$SUDOERS_CONTENT" | sudo tee /etc/sudoers.d/greeter-greetd > /dev/null
 sudo chmod 440 /etc/sudoers.d/greeter-greetd
 sudo visudo -c -f /etc/sudoers.d/greeter-greetd

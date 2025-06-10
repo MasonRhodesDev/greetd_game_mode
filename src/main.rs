@@ -85,6 +85,20 @@ fn is_user_logged_in_on_tty(tty: &str) -> Result<bool> {
     Ok(result)
 }
 
+fn get_active_tty() -> Result<String> {
+    let output = Command::new("sudo")
+        .arg("fgconsole")
+        .output()?;
+    
+    if !output.status.success() {
+        return Err(anyhow::anyhow!("fgconsole failed: {}", String::from_utf8_lossy(&output.stderr)));
+    }
+    
+    let tty = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    debug!("Active TTY number: {}", tty);
+    Ok(tty)
+}
+
 fn run_game_mode() -> Result<()> {
     // Logging is already initialized in main()
     info!("Starting game mode service");
@@ -118,6 +132,7 @@ fn run_game_mode() -> Result<()> {
     // Get greetd TTY
     let config = Config::load()?;
     let greetd_tty = format!("tty{}", config.terminal.vt);
+    let greetd_vt = config.terminal.vt.to_string();
     info!("Greetd running on {}", greetd_tty);
 
     // Main event loop
@@ -125,6 +140,23 @@ fn run_game_mode() -> Result<()> {
         // Process gamepad events
         while let Some(Event { id, event, time }) = gilrs.next_event() {
             debug!("Gamepad event: {:?}", event);
+            
+            // Check if greetd TTY is active
+            match get_active_tty() {
+                Ok(active_tty) => {
+                    if active_tty != greetd_vt {
+                        debug!("Greetd VT {} is not active (active: {}), ignoring gamepad events", greetd_vt, active_tty);
+                        std::thread::sleep(Duration::from_millis(1000));
+                        continue;
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to get active TTY: {}", e);
+                    std::thread::sleep(Duration::from_millis(1000));
+                    continue;
+                }
+            }
+
             if is_user_logged_in_on_tty(&greetd_tty)? {
                 debug!("User logged in on greetd TTY {}, ignoring gamepad events", greetd_tty);
                 std::thread::sleep(Duration::from_millis(1000));
