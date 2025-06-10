@@ -1,6 +1,15 @@
 #!/bin/bash
 set -e
 
+# Check if packages are installed and install if needed
+if ! pacman -Qi canta-gtk-theme &>/dev/null; then
+    yay -S --noconfirm canta-gtk-theme
+fi
+
+if ! pacman -Qi papirus-icon-theme &>/dev/null; then
+    sudo pacman -S --noconfirm papirus-icon-theme
+fi
+
 echo "Cleaning up old build..."
 cargo clean
 

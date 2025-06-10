@@ -1,27 +1,14 @@
 use anyhow::Result;
 use std::{
     process::Command,
-    sync::atomic::{AtomicBool, Ordering},
     fs,
 };
 use crate::config::Config;
 use tracing::{debug, info};
 
-static SWITCH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
-
 pub fn switch_to_game_mode() -> Result<()> {
     info!("Starting game mode switch");
     
-    // Check if switch is already in progress
-    if SWITCH_IN_PROGRESS.load(Ordering::SeqCst) {
-        info!("Game mode switch already in progress, ignoring request");
-        return Ok(());
-    }
-
-    // Set the flag to indicate switch is in progress
-    SWITCH_IN_PROGRESS.store(true, Ordering::SeqCst);
-    info!("Switch in progress flag set");
-
     let config = Config::load()?;
     let config_path = config.get_config_path();
     let game_mode_config = config.get_game_mode_config_path();

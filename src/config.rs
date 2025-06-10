@@ -10,11 +10,6 @@ pub const GREETER_USER: &str = "greeter";
 pub const REQUIRED_GROUPS: &[&str] = &["input", "video"];
 pub const VT_NUMBER: u32 = 1;
 
-// Service configuration
-pub const SERVICE_NAME: &str = "greetd";
-pub const RESTART_COMMAND: &str = "systemctl restart greetd";
-pub const SERVICE_DEPENDENCY: &str = "greetd.service";
-
 // Game mode configuration
 pub const DEBUG_MODE: bool = true;
 
@@ -47,7 +42,6 @@ impl InstallationState {
 #[derive(Debug)]
 pub struct Config {
     pub paths: Paths,
-    pub service: Service,
     pub game_mode: GameMode,
     pub permissions: Permissions,
     pub terminal: Terminal,
@@ -60,13 +54,6 @@ pub struct Paths {
     pub greetd_dir: String,
     pub config_file: String,
     pub game_mode_config: String,
-}
-
-#[derive(Debug)]
-pub struct Service {
-    pub name: String,
-    pub restart_command: String,
-    pub dependency: String,
 }
 
 #[derive(Debug)]
@@ -93,11 +80,6 @@ impl Config {
                 greetd_dir: GREETD_DIR.to_string(),
                 config_file: CONFIG_FILE.to_string(),
                 game_mode_config: GAME_MODE_CONFIG.to_string(),
-            },
-            service: Service {
-                name: SERVICE_NAME.to_string(),
-                restart_command: RESTART_COMMAND.to_string(),
-                dependency: SERVICE_DEPENDENCY.to_string(),
             },
             game_mode: GameMode {
                 debug: DEBUG_MODE,
@@ -138,25 +120,5 @@ impl Config {
 
     pub fn get_game_mode_config_path(&self) -> PathBuf {
         self.path_manager.get_game_mode_config_path()
-    }
-
-    pub fn get_service_file_path(&self) -> PathBuf {
-        self.path_manager.get_service_file_path()
-    }
-
-    pub fn get_logs_dir(&self) -> PathBuf {
-        self.path_manager.get_logs_dir()
-    }
-
-    pub fn get_sudoers_path(&self) -> PathBuf {
-        self.path_manager.get_sudoers_path()
-    }
-
-    pub fn get_systemd_service_path(&self) -> PathBuf {
-        self.path_manager.get_systemd_service_path()
-    }
-
-    pub fn get_binary_path(&self) -> PathBuf {
-        self.path_manager.get_binary_path()
     }
 } 

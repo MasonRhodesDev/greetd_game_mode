@@ -6,9 +6,6 @@ fn main() {
     println!("GAME_MODE_CONFIG='{}'", GAME_MODE_CONFIG);
     println!("GREETER_USER='{}'", GREETER_USER);
     println!("VT_NUMBER={}", VT_NUMBER);
-    println!("SERVICE_NAME='{}'", SERVICE_NAME);
-    println!("RESTART_COMMAND='{}'", RESTART_COMMAND);
-    println!("SERVICE_DEPENDENCY='{}'", SERVICE_DEPENDENCY);
     println!("DEBUG_MODE={}", DEBUG_MODE);
     println!("REQUIRED_GROUPS=({})", REQUIRED_GROUPS.join(" "));
 } 

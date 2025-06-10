@@ -217,21 +217,6 @@ fn run_game_mode() -> Result<()> {
     Ok(())
 }
 
-fn in_game_mode() -> Result<bool> {
-    let config = crate::config::Config::load()?;
-    let config_path = config.get_config_path();
-    let game_mode_path = config.get_game_mode_config_path();
-
-    // Check if config_path is a symlink
-    if !config_path.is_symlink() {
-        return Ok(false);
-    }
-
-    // Get the target of the symlink
-    let target = fs::read_link(config_path)?;
-    Ok(target == game_mode_path)
-}
-
 fn main() -> Result<()> {
     // Initialize logging first thing
     if let Err(e) = setup_logging() {

@@ -19,10 +19,6 @@ impl PathManager {
         }
     }
 
-    pub fn get_root(&self) -> &Path {
-        &self.root
-    }
-
     pub fn get_greetd_dir(&self) -> PathBuf {
         self.root.join(&self.greetd_dir)
     }
@@ -37,26 +33,6 @@ impl PathManager {
 
     pub fn get_game_mode_config_path(&self) -> PathBuf {
         self.get_greetd_dir().join(&self.game_mode_config)
-    }
-
-    pub fn get_service_file_path(&self) -> PathBuf {
-        PathBuf::from("greetd/game-mode.service")
-    }
-
-    pub fn get_logs_dir(&self) -> PathBuf {
-        self.get_greetd_dir().join("logs")
-    }
-
-    pub fn get_sudoers_path(&self) -> PathBuf {
-        PathBuf::from("/etc/sudoers.d/greeter-greetd")
-    }
-
-    pub fn get_systemd_service_path(&self) -> PathBuf {
-        PathBuf::from("/etc/systemd/system/game-mode.service")
-    }
-
-    pub fn get_binary_path(&self) -> PathBuf {
-        self.root.join("usr/local/bin/game-mode")
     }
 }
 
@@ -77,7 +53,6 @@ mod tests {
         assert_eq!(manager.get_config_path(), PathBuf::from("/etc/greetd/config.toml"));
         assert_eq!(manager.get_default_config_path(), PathBuf::from("/etc/greetd/config_default.toml"));
         assert_eq!(manager.get_game_mode_config_path(), PathBuf::from("/etc/greetd/game_mode_login.toml"));
-        assert_eq!(manager.get_logs_dir(), PathBuf::from("/etc/greetd/logs"));
     }
 
     #[test]
@@ -93,6 +68,5 @@ mod tests {
         assert_eq!(manager.get_config_path(), PathBuf::from("/tmp/test/etc/greetd/config.toml"));
         assert_eq!(manager.get_default_config_path(), PathBuf::from("/tmp/test/etc/greetd/config_default.toml"));
         assert_eq!(manager.get_game_mode_config_path(), PathBuf::from("/tmp/test/etc/greetd/game_mode_login.toml"));
-        assert_eq!(manager.get_logs_dir(), PathBuf::from("/tmp/test/etc/greetd/logs"));
     }
 } 
