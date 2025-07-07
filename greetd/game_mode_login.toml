@@ -1,6 +1,7 @@
 [terminal]
 vt = {{vt}}
 [default_session]
-command = "gamescope-session-plus steam"
-user = "games"
+# command = "gamescope-session-plus steam -tenfoot"
+command = "/etc/greetd/game-mode-wrapper.sh"
+user = "mason"
 autologin = true
