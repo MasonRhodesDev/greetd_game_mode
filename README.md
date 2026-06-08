@@ -27,9 +27,42 @@ Unlisted Dependencies:
 ```
 sudo pacman -S greetd-git greetd-regreet-git
 yay -S steam gamescope-session-steam-git hyprland-meta-git
+yay -S discover-overlay   # Discord voice overlay (optional)
 ```
 
 These can all be swapped out. This is just specific to my setup, so I didn't add any config options to help.
+
+## Discord Integration
+
+Game mode runs Steam Big Picture (`steam -gamepadui`) inside a standalone
+gamescope compositor, so the desktop Discord app and overlay aren't present by
+default. Two complementary pieces cover it:
+
+### Decky Loader (status / presence panels)
+
+[Decky Loader](https://decky.xyz) patches the Big Picture UI and exposes plugins
+(e.g. Discord status) in the Quick Access menu. It runs as the `plugin_loader`
+system service and is independent of how the session is launched. Install Decky
+once under the game user's `~/homebrew`; `install.sh` then enables the service.
+Enable manually with:
+```
+sudo systemctl enable --now plugin_loader.service
+```
+
+### discover-overlay (in-game voice overlay)
+
+`scripts/game-mode-wrapper.sh` launches `discover-overlay` before exec'ing Steam.
+gamescope hands children an **Xwayland (X11)** display, not Wayland, so the
+overlay runs with `GDK_BACKEND=x11` (and `WAYLAND_DISPLAY` unset) per
+`discover-overlay --help`. Notes:
+
+- Run `discover-overlay --configure` **once in desktop mode** (with Discord
+  running) to authorize the connection and set overlay options.
+- The overlay reads voice state from a running Discord client's IPC socket
+  (`$XDG_RUNTIME_DIR/discord-ipc-0`). Add Discord as a non-Steam shortcut and
+  launch it from Big Picture when you want voice display — the overlay
+  reconnects automatically. Text chat / calls are best done from a phone;
+  controller text entry in Big Picture is painful.
 
 ## Installation
 

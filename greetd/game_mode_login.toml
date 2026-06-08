@@ -1,7 +1,10 @@
 [terminal]
 vt = {{vt}}
 [default_session]
-# command = "gamescope-session-plus steam -tenfoot"
-command = "/etc/greetd/game-mode-wrapper.sh"
+# Launch Steam Big Picture (gamepadui) inside a standalone gamescope
+# compositor. The entrypoint is a wrapper that also starts the Discord voice
+# overlay before exec'ing Steam (see scripts/game-mode-wrapper.sh).
+# Direct, no overlay: command = "/usr/bin/gamescope -e -- /usr/bin/steam -gamepadui"
+command = "/usr/bin/gamescope -e -- /etc/greetd/scripts/game-mode-wrapper.sh"
 user = "mason"
 autologin = true

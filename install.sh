@@ -10,6 +10,12 @@ if ! pacman -Qi papirus-icon-theme &>/dev/null; then
     sudo pacman -S --noconfirm papirus-icon-theme
 fi
 
+# Discord voice overlay for game mode (X11/gamescope path). Optional: the
+# wrapper only launches it if present, but install it so game mode has it.
+if ! pacman -Qi discover-overlay &>/dev/null; then
+    yay -S --noconfirm discover-overlay
+fi
+
 echo "Cleaning up old build..."
 cargo clean
 
@@ -54,6 +60,9 @@ sudo visudo -c -f /etc/sudoers.d/greeter-greetd
 # Copy all greetd files
 sudo cp -r greetd/* "$GREETD_DIR"
 
+# Ensure the game-mode session wrapper is executable
+sudo chmod +x "$GREETD_DIR/scripts/game-mode-wrapper.sh"
+
 # Replace TTY placeholder in config files
 echo "Configuring TTY settings..."
 sudo sed -i "s/{{vt}}/$VT_NUMBER/g" "$GREETD_DIR/config_default.toml"
@@ -89,4 +98,12 @@ sudo systemctl enable game-mode.service
 echo "Restarting greetd service..."
 sudo systemctl restart greetd.service
 
-echo "Installation complete!" 
+# Enable Decky Loader so its plugins (Discord status, etc.) inject into Big
+# Picture. Decky itself must already be installed under the game user's
+# ~/homebrew (https://decky.xyz); this only enables its service if present.
+if [ -f /etc/systemd/system/plugin_loader.service ]; then
+    echo "Enabling Decky Loader (plugin_loader.service)..."
+    sudo systemctl enable plugin_loader.service
+fi
+
+echo "Installation complete!"
