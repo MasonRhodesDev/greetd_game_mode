@@ -63,6 +63,10 @@ sudo cp -r greetd/* "$GREETD_DIR"
 # Ensure the game-mode session wrapper is executable
 sudo chmod +x "$GREETD_DIR/scripts/game-mode-wrapper.sh"
 
+# Steam gamepadui "Switch to Desktop" hook: Steam execs steamos-session-select
+# from PATH; install our shim (ends the game session -> regreet greeter).
+sudo install -m755 greetd/scripts/steamos-session-select /usr/local/bin/steamos-session-select
+
 # Replace TTY placeholder in config files
 echo "Configuring TTY settings..."
 sudo sed -i "s/{{vt}}/$VT_NUMBER/g" "$GREETD_DIR/config_default.toml"
