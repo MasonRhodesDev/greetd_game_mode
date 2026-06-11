@@ -1,10 +1,28 @@
 [terminal]
 vt = {{vt}}
-[default_session]
-# Launch Steam Big Picture (gamepadui) inside a standalone gamescope
-# compositor. The entrypoint is a wrapper that also starts the Discord voice
-# overlay before exec'ing Steam (see scripts/game-mode-wrapper.sh).
+
+# Entered by the game-mode service when the gamepad Guide button is pressed at
+# the greeter: it symlinks config.toml -> this file and restarts greetd.
+#
+# greetd runs [initial_session] exactly once when it starts, so Steam Big
+# Picture launches immediately (autologin as the games user). When the user
+# exits Big Picture (power menu -> Exit), greetd falls through to
+# [default_session] -- the regreet login greeter -- so *exiting Steam logs you
+# out* to the login screen instead of re-looping straight back into Big
+# Picture. From that greeter the Guide button takes you back into game mode.
+
+[initial_session]
+# Steam Big Picture inside a standalone gamescope compositor. The wrapper also
+# starts the Discord voice overlay before exec'ing Steam (see
+# scripts/game-mode-wrapper.sh).
 # Direct, no overlay: command = "/usr/bin/gamescope -e -- /usr/bin/steam -gamepadui"
-command = "/usr/bin/gamescope -e -- /etc/greetd/scripts/game-mode-wrapper.sh"
+# No -W/-H/-O flags: embedded gamescope auto-picks the connected output and its
+# EDID-preferred mode. HDR flags are graceful no-ops on non-HDR displays.
+command = "/usr/bin/gamescope -e --hdr-enabled --hdr-itm-enabled --hide-cursor-delay 3000 -- /etc/greetd/scripts/game-mode-wrapper.sh"
 user = "mason"
-autologin = true
+
+[default_session]
+# regreet GTK4 greeter under Hyprland, identical to config_default.toml. Reached
+# when Steam Big Picture exits, i.e. this is the "logged out" landing screen.
+command = "Hyprland --config /etc/greetd/hypr.conf"
+user = "greeter"
