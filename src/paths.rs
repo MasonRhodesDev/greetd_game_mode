@@ -20,7 +20,10 @@ impl PathManager {
     }
 
     pub fn get_greetd_dir(&self) -> PathBuf {
-        self.root.join(&self.greetd_dir)
+        // Path::join with an absolute path *replaces* the base, so strip the
+        // leading "/" or the virtual root would be silently discarded.
+        let rel = self.greetd_dir.strip_prefix("/").unwrap_or(&self.greetd_dir);
+        self.root.join(rel)
     }
 
     pub fn get_config_path(&self) -> PathBuf {

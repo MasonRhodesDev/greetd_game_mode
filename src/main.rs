@@ -9,8 +9,8 @@ use std::{
     env,
     fs,
     sync::atomic::{AtomicBool, Ordering},
-    sync::Arc,
-    time::Duration,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
     process::Command,
 };
 use crate::config::Config;
@@ -111,17 +111,23 @@ fn is_greeter_active() -> Result<bool> {
     Ok(result)
 }
 
+// Cached active-TTY lookup: called for every gamepad event, so don't hit the
+// filesystem more than once a second.
+static ACTIVE_TTY_CACHE: Mutex<Option<(Instant, String)>> = Mutex::new(None);
+
 fn get_active_tty() -> Result<String> {
-    let output = Command::new("sudo")
-        .arg("fgconsole")
-        .output()?;
-    
-    if !output.status.success() {
-        return Err(anyhow::anyhow!("fgconsole failed: {}", String::from_utf8_lossy(&output.stderr)));
+    let mut cache = ACTIVE_TTY_CACHE.lock().unwrap();
+    if let Some((at, tty)) = cache.as_ref() {
+        if at.elapsed() < Duration::from_secs(1) {
+            return Ok(tty.clone());
+        }
     }
-    
-    let tty = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    // /sys/class/tty/tty0/active is world-readable and always current — no
+    // sudo fgconsole subprocess (which could block the event loop) needed.
+    let raw = fs::read_to_string("/sys/class/tty/tty0/active")?;
+    let tty = raw.trim().trim_start_matches("tty").to_string();
     debug!("Active TTY number: {}", tty);
+    *cache = Some((Instant::now(), tty.clone()));
     Ok(tty)
 }
 

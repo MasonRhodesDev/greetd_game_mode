@@ -9,12 +9,15 @@ pub const GAME_MODE_CONFIG: &str = "game_mode_login.toml";
 pub const GREETER_USER: &str = "greeter";
 pub const REQUIRED_GROUPS: &[&str] = &["input", "video"];
 pub const VT_NUMBER: u32 = 1;
+// Machine-specific build-time config: the user/group/dir the game session runs
+// as. Edit before building for another machine.
 pub const GAMES_USER: &str = "mason";
 pub const GAMES_GROUP: &str = "mason";
 pub const GAMES_DIR: &str = "/games";
 
-// Game mode configuration
-pub const DEBUG_MODE: bool = true;
+// Default log filter is info; set RUST_LOG (e.g. in game-mode.service) for
+// debug logging at runtime instead of flipping this at build time.
+pub const DEBUG_MODE: bool = false;
 
 #[derive(Default)]
 pub struct InstallationState {
