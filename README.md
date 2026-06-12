@@ -93,8 +93,9 @@ in one, or relax Bitwarden's vault timeout.
 - Arch Linux. `[multilib]` enabled (Steam).
 - Packages: `greetd` (or `greetd-git`), `greetd-regreet`, `hyprland` ≥ 0.55
   (greeter compositor; sessions launch via its `start-hyprland` watchdog),
-  `gamescope`, `steam`, `bubblewrap`, `swaybg`, `qrencode`, `python`,
-  `rust`/`rustup`, `curl`, `tailscale`.
+  `gamescope`, `steam`, `bubblewrap`, `swaybg`, `qrencode`, `xdotool`,
+  `python`, `rust`/`rustup`, `curl`, `tailscale`, `discord`
+  (auto-installed by the installer when missing), `discover-overlay` (AUR).
 - Optional (AUR, skipped if `yay` is absent): `canta-gtk-theme`,
   `discover-overlay`.
 - **Tailscale up and logged in** before installing — the verifier's HTTPS
