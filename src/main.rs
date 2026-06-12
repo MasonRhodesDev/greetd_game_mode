@@ -68,31 +68,39 @@ fn setup_logging() -> Result<()> {
     Ok(())
 }
 
-/// Block until greetd has started any session on the target VT, i.e. it has
-/// read config.toml and acted on it. Used on startup before resetting the
-/// config symlink.
-fn wait_for_session_on_tty(tty: &str, timeout: Duration) {
+/// IDs of logind sessions currently on the given TTY (any class, any state).
+fn list_tty_session_ids(tty: &str) -> Vec<String> {
+    Command::new("loginctl")
+        .arg("-j")
+        .arg("list-sessions")
+        .output()
+        .ok()
+        .and_then(|o| serde_json::from_slice::<Vec<Value>>(&o.stdout).ok())
+        .map(|sessions: Vec<Value>| {
+            sessions
+                .iter()
+                .filter(|s| s["tty"].as_str().unwrap_or("") == tty)
+                .filter_map(|s| s["session"].as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Block until greetd has started a session on the target VT that did not
+/// exist when we were called, i.e. it has read config.toml and acted on it.
+/// Sessions from before the greetd restart can linger in logind (state
+/// "closing") and must not count — matching any session raced the config
+/// read and reverted an approved game-mode entry back to the greeter.
+fn wait_for_new_session_on_tty(tty: &str, existing: &[String], timeout: Duration) {
     let start = Instant::now();
     while start.elapsed() < timeout {
-        let found = Command::new("loginctl")
-            .arg("-j")
-            .arg("list-sessions")
-            .output()
-            .ok()
-            .and_then(|o| serde_json::from_slice::<Vec<Value>>(&o.stdout).ok())
-            .map(|sessions: Vec<Value>| {
-                sessions
-                    .iter()
-                    .any(|s| s["tty"].as_str().unwrap_or("") == tty)
-            })
-            .unwrap_or(false);
-        if found {
-            debug!("Session present on {}; greetd has consumed its config", tty);
+        if list_tty_session_ids(tty).iter().any(|id| !existing.contains(id)) {
+            debug!("New session present on {}; greetd has consumed its config", tty);
             return;
         }
-        std::thread::sleep(Duration::from_millis(500));
+        std::thread::sleep(Duration::from_millis(250));
     }
-    warn!("No session appeared on {} within {:?}; resetting config anyway", tty, timeout);
+    warn!("No new session appeared on {} within {:?}; resetting config anyway", tty, timeout);
 }
 
 /// State of a logind session ("active", "online", "closing", ...). Sessions in
@@ -282,15 +290,27 @@ fn main() -> Result<()> {
     }
     info!("Game mode service starting");
 
-    // Always reset to desktop mode on startup — but not before greetd has
-    // consumed config.toml. This service restarts together with greetd
-    // (BindsTo), so resetting immediately races greetd's config read and
-    // turns an approved game-mode entry back into a plain greeter.
+    // Reset to desktop mode on startup so game mode is one-shot: the next
+    // greetd restart lands on the greeter. Skip when config.toml already
+    // points at the default (normal boot) — and when it points at the game
+    // config, we are restarting together with greetd (BindsTo) right after
+    // an approved entry, so wait until greetd has actually consumed the
+    // config (a session that didn't exist at our startup appears) before
+    // reverting the symlink.
     let config = Config::load()?;
-    wait_for_session_on_tty(&format!("tty{}", config.terminal.vt), Duration::from_secs(30));
-    if let Err(e) = game_mode_switch::switch_to_desktop_mode() {
-        eprintln!("Failed to reset to desktop mode: {}", e);
-        return Err(e.into());
+    let needs_reset = fs::read_link(config.get_config_path())
+        .map(|target| target != config.get_default_config_path())
+        .unwrap_or(true);
+    if needs_reset {
+        let tty = format!("tty{}", config.terminal.vt);
+        let existing = list_tty_session_ids(&tty);
+        wait_for_new_session_on_tty(&tty, &existing, Duration::from_secs(15));
+        if let Err(e) = game_mode_switch::switch_to_desktop_mode() {
+            eprintln!("Failed to reset to desktop mode: {}", e);
+            return Err(e.into());
+        }
+    } else {
+        debug!("config.toml already points at the default config; no reset needed");
     }
 
     if let Err(e) = run_game_mode() {
