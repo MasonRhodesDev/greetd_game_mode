@@ -147,8 +147,11 @@ fi
 # from PATH; install our shim (ends the game session -> regreet greeter).
 sudo install -m755 greetd/scripts/steamos-session-select /usr/local/bin/steamos-session-select
 
-# Non-Steam shortcut target that focuses the in-session Discord window
+# Non-Steam shortcut target that launches Discord under Steam's reaper
 sudo install -m755 greetd/scripts/game-mode-discord /usr/local/bin/game-mode-discord
+
+# discover-overlay launcher with runtime fixes (the wrapper autostarts this)
+sudo install -m755 greetd/scripts/game-mode-overlay /usr/local/bin/game-mode-overlay
 
 # Add the "Discord" non-Steam shortcut to shortcuts.vdf (idempotent; refuses
 # while Steam is running because Steam rewrites the file on exit)

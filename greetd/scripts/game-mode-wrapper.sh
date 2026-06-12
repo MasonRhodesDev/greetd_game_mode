@@ -22,13 +22,14 @@ start_session_apps() {
     # which runs it under Steam's reaper so gamescope presents it natively
     # and it keeps running in the background after switching back to BP.
     if command -v discover-overlay >/dev/null 2>&1; then
-        # Retry a few times (gamescope's Xwayland may not accept clients yet)
-        # and log to /tmp for diagnosability.
+        # Launched via game-mode-overlay (runtime fixes for upstream's
+        # too-tight RPC timeout). Retry a few times (gamescope's Xwayland may
+        # not accept clients yet) and log to /tmp for diagnosability.
         (
             for attempt in 1 2 3 4 5; do
                 sleep 3
                 echo "=== discover-overlay attempt $attempt $(date -Is)" >> /tmp/discover-overlay.log
-                env -u WAYLAND_DISPLAY GDK_BACKEND=x11 discover-overlay >> /tmp/discover-overlay.log 2>&1
+                env -u WAYLAND_DISPLAY GDK_BACKEND=x11 /usr/local/bin/game-mode-overlay >> /tmp/discover-overlay.log 2>&1
             done
             echo "=== discover-overlay gave up $(date -Is)" >> /tmp/discover-overlay.log
         ) &
