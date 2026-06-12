@@ -1,19 +1,61 @@
 #!/bin/bash
 set -e
+cd "$(dirname "$(realpath "$0")")"
 
-# Check if packages are installed and install if needed
-if ! pacman -Qi canta-gtk-theme &>/dev/null; then
-    yay -S --noconfirm canta-gtk-theme
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Run as a regular user (the script escalates with sudo where needed);" >&2
+    echo "cargo and yay refuse to run as root." >&2
+    exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# Preflight: everything the finished setup needs. Compositor flavour, AUR
+# helper and multilib Steam are setup choices, so missing pieces are reported
+# with install hints rather than auto-installed.
+# ---------------------------------------------------------------------------
+echo "Checking prerequisites..."
+MISSING=()
+need() { command -v "$1" >/dev/null 2>&1 || MISSING+=("$1 — $2"); }
+need greetd         "pacman -S greetd (or greetd-git)"
+need regreet        "pacman -S greetd-regreet (or greetd-regreet-git)"
+need hyprland       "hyprland >= 0.55 (pacman -S hyprland, or hyprland-git)"
+need start-hyprland "ships with hyprland >= 0.55; greeter sessions launch via this watchdog"
+need gamescope      "pacman -S gamescope"
+need steam          "pacman -S steam (requires the [multilib] repo)"
+need bwrap          "pacman -S bubblewrap (home mask for the game session)"
+need swaybg         "pacman -S swaybg (greeter background)"
+need qrencode       "pacman -S qrencode (one-time phone setup QRs)"
+need python3        "pacman -S python"
+need cargo          "pacman -S rust (or rustup)"
+need curl           "pacman -S curl"
+need tailscale      "pacman -S tailscale (HTTPS origin for the WebAuthn verifier)"
+getent passwd greeter >/dev/null || MISSING+=("greeter user — created by the greetd package")
+if [ ${#MISSING[@]} -gt 0 ]; then
+    echo "Missing prerequisites:" >&2
+    printf '  - %s\n' "${MISSING[@]}" >&2
+    exit 1
+fi
+
+# The verifier's RP ID / origin come from the tailnet FQDN, so tailscale must
+# be up and logged in before installing.
+if ! tailscale status --json >/dev/null 2>&1; then
+    echo "tailscale is not running or not logged in." >&2
+    echo "  sudo systemctl enable --now tailscaled && sudo tailscale up" >&2
+    echo "then re-run this installer." >&2
+    exit 1
+fi
+
+# Optional cosmetics / extras
 if ! pacman -Qi papirus-icon-theme &>/dev/null; then
     sudo pacman -S --noconfirm papirus-icon-theme
 fi
-
-# Discord voice overlay for game mode (X11/gamescope path). Optional: the
-# wrapper only launches it if present, but install it so game mode has it.
-if ! pacman -Qi discover-overlay &>/dev/null; then
-    yay -S --noconfirm discover-overlay
+if command -v yay >/dev/null 2>&1; then
+    # greeter GTK theme + Discord voice overlay (the wrapper only launches the
+    # overlay if present)
+    pacman -Qi canta-gtk-theme &>/dev/null || yay -S --noconfirm canta-gtk-theme
+    pacman -Qi discover-overlay &>/dev/null || yay -S --noconfirm discover-overlay
+else
+    echo "WARN: yay not found — skipping optional AUR packages (canta-gtk-theme, discover-overlay)"
 fi
 
 echo "Cleaning up old build..."
