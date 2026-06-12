@@ -147,17 +147,19 @@ more. Escape hatch while debugging: `touch /games/.game-mode-no-mask`.
 
 Discord runs **inside** the gamescope session with full controller support:
 
-- **Client**: the wrapper autostarts `discord --start-minimized` in the
-  sandbox at session start (its `~/.config/discord` state is bound in, so
-  login carries over from the desktop) — voice-ready immediately.
+- **Client**: launch the "Discord" non-Steam shortcut from Big Picture once
+  per session — it runs `discord` in the sandbox under Steam's reaper, so
+  gamescope presents the window natively and Steam Input's desktop layout
+  drives it (right stick/pad = mouse, A = click). Its `~/.config/discord`
+  state is bound in, so login carries over from the desktop. Pressing Guide
+  and returning to BP leaves it running in the background: voice and the
+  overlay stay live until you "Stop" it from BP.
+  (Autostarting Discord outside Steam was tried and reverted: windows of
+  clients Steam didn't launch lack gamescope's STEAM_GAME tagging and can't
+  be presented properly.)
 - **In-game voice overlay**: `discover-overlay` (X11 backend under
-  gamescope's Xwayland) renders who's talking over Big Picture and games.
-- **Controller-driven UI**: a non-Steam shortcut pointing at
-  `/usr/local/bin/game-mode-discord` raises the running Discord window and
-  holds focus; Steam Input's desktop layout drives it (right stick/pad =
-  mouse, A = click). "Stop" in BP returns to Big Picture with Discord still
-  running minimized. (A shortcut directly at `discord` would exit instantly
-  via single-instance handoff.)
+  gamescope's Xwayland, autostarted by the wrapper with retries; log at
+  `/tmp/discover-overlay.log`) renders who's talking over BP and games.
 - **Decky Loader** (Big Picture QAM plugins): install once under the game
   user's `~/homebrew` (https://decky.xyz); `install.sh` enables its service
   when present.
