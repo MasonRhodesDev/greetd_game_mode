@@ -5,7 +5,7 @@ mod paths;
 
 use anyhow::Result;
 use gilrs::{Button, Event, Gilrs};
-use tracing::{info, error, debug};
+use tracing::{info, error, debug, warn};
 use std::{
     env,
     fs,
@@ -66,6 +66,33 @@ fn setup_logging() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Block until greetd has started any session on the target VT, i.e. it has
+/// read config.toml and acted on it. Used on startup before resetting the
+/// config symlink.
+fn wait_for_session_on_tty(tty: &str, timeout: Duration) {
+    let start = Instant::now();
+    while start.elapsed() < timeout {
+        let found = Command::new("loginctl")
+            .arg("-j")
+            .arg("list-sessions")
+            .output()
+            .ok()
+            .and_then(|o| serde_json::from_slice::<Vec<Value>>(&o.stdout).ok())
+            .map(|sessions: Vec<Value>| {
+                sessions
+                    .iter()
+                    .any(|s| s["tty"].as_str().unwrap_or("") == tty)
+            })
+            .unwrap_or(false);
+        if found {
+            debug!("Session present on {}; greetd has consumed its config", tty);
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    warn!("No session appeared on {} within {:?}; resetting config anyway", tty, timeout);
 }
 
 /// State of a logind session ("active", "online", "closing", ...). Sessions in
@@ -255,7 +282,12 @@ fn main() -> Result<()> {
     }
     info!("Game mode service starting");
 
-    // Always reset to desktop mode on startup
+    // Always reset to desktop mode on startup — but not before greetd has
+    // consumed config.toml. This service restarts together with greetd
+    // (BindsTo), so resetting immediately races greetd's config read and
+    // turns an approved game-mode entry back into a plain greeter.
+    let config = Config::load()?;
+    wait_for_session_on_tty(&format!("tty{}", config.terminal.vt), Duration::from_secs(30));
     if let Err(e) = game_mode_switch::switch_to_desktop_mode() {
         eprintln!("Failed to reset to desktop mode: {}", e);
         return Err(e.into());
