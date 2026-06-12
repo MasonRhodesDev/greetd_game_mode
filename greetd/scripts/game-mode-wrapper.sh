@@ -16,16 +16,22 @@
 # compatibility ensure ENV has 'GDK_BACKEND=x11'".
 # ----------------------------------------------------------------------------
 start_session_apps() {
-    # Discord client: voice-ready at session start; the overlay reads its IPC
-    # socket ($XDG_RUNTIME_DIR/discord-ipc-0). Bring its UI up from Big
-    # Picture via the "Discord" non-Steam shortcut (game-mode-discord shim).
-    if command -v discord >/dev/null 2>&1; then
-        ( sleep 4; env -u WAYLAND_DISPLAY discord --start-minimized ) &
-    fi
-    # Voice overlay (best-effort; never block the Steam session). Configure
-    # once in desktop mode with `discover-overlay --configure`.
+    # Voice overlay (best-effort; never block the Steam session). It idles
+    # until a Discord client appears — Discord itself is launched on demand
+    # from Big Picture via the "Discord" non-Steam shortcut (game-mode-discord),
+    # which runs it under Steam's reaper so gamescope presents it natively
+    # and it keeps running in the background after switching back to BP.
     if command -v discover-overlay >/dev/null 2>&1; then
-        ( sleep 2; env -u WAYLAND_DISPLAY GDK_BACKEND=x11 discover-overlay ) &
+        # Retry a few times (gamescope's Xwayland may not accept clients yet)
+        # and log to /tmp for diagnosability.
+        (
+            for attempt in 1 2 3 4 5; do
+                sleep 3
+                echo "=== discover-overlay attempt $attempt $(date -Is)" >> /tmp/discover-overlay.log
+                env -u WAYLAND_DISPLAY GDK_BACKEND=x11 discover-overlay >> /tmp/discover-overlay.log 2>&1
+            done
+            echo "=== discover-overlay gave up $(date -Is)" >> /tmp/discover-overlay.log
+        ) &
     fi
 }
 
