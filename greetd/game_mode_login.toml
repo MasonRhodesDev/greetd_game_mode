@@ -30,5 +30,5 @@ user = "mason"
 [default_session]
 # regreet GTK4 greeter under Hyprland, identical to config_default.toml. Reached
 # when Steam Big Picture exits, i.e. this is the "logged out" landing screen.
-command = "Hyprland --config /etc/greetd/hypr.conf"
+command = "start-hyprland -- --config /etc/greetd/hypr.conf"
 user = "greeter"
