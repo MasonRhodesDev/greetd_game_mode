@@ -144,17 +144,32 @@ more. Escape hatch while debugging: `touch /games/.game-mode-no-mask`.
 
 ## Discord Integration
 
-Game mode runs Steam Big Picture inside a standalone gamescope compositor,
-so the desktop Discord app and overlay aren't present by default:
+Discord runs **inside** the gamescope session with full controller support:
 
-- **Decky Loader** (Big Picture status/presence panels): install once under
-  the game user's `~/homebrew` (https://decky.xyz); `install.sh` enables its
-  service when present.
-- **discover-overlay** (in-game voice overlay): launched by the wrapper with
-  `GDK_BACKEND=x11` (gamescope hands children an Xwayland display). Run
-  `discover-overlay --configure` once in desktop mode first; it reads voice
-  state from a running Discord client's IPC socket — add Discord as a
-  non-Steam shortcut.
+- **Client**: the wrapper autostarts `discord --start-minimized` in the
+  sandbox at session start (its `~/.config/discord` state is bound in, so
+  login carries over from the desktop) — voice-ready immediately.
+- **In-game voice overlay**: `discover-overlay` (X11 backend under
+  gamescope's Xwayland) renders who's talking over Big Picture and games.
+- **Controller-driven UI**: a non-Steam shortcut pointing at
+  `/usr/local/bin/game-mode-discord` raises the running Discord window and
+  holds focus; Steam Input's desktop layout drives it (right stick/pad =
+  mouse, A = click). "Stop" in BP returns to Big Picture with Discord still
+  running minimized. (A shortcut directly at `discord` would exit instantly
+  via single-instance handoff.)
+- **Decky Loader** (Big Picture QAM plugins): install once under the game
+  user's `~/homebrew` (https://decky.xyz); `install.sh` enables its service
+  when present.
+
+One-time setup, on the desktop (state lands in dirs the mask binds in):
+
+1. With Discord running: `discover-overlay --configure` → authorize, enable
+   the voice overlay, pick a corner.
+2. Discord → Settings → Voice & Video → **Voice Activity** (hands-free mic;
+   no controller PTT binding needed).
+3. Desktop Steam → Add a Non-Steam Game → browse to
+   `/usr/local/bin/game-mode-discord`, rename it "Discord". (Programmatic
+   shortcuts.vdf editing needs Steam closed — not worth scripting.)
 
 ## Logging & troubleshooting
 

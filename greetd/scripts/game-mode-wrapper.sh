@@ -3,30 +3,43 @@
 # Game-mode session entrypoint. Executed as the child of gamescope, i.e.
 #   /usr/bin/gamescope -e -- /etc/greetd/scripts/game-mode-wrapper.sh
 #
-# gamescope exposes an Xwayland X11 display to its children (DISPLAY) rather
-# than a Wayland socket, so the Discord voice overlay must use the X11/GTK
-# backend. Per `discover-overlay --help`:
-#   "For gamescope compatibility ensure ENV has 'GDK_BACKEND=x11'".
-#
-# The overlay reads voice state from a running Discord client's local IPC
-# socket ($XDG_RUNTIME_DIR/discord-ipc-0). Add Discord as a non-Steam shortcut
-# and launch it from Big Picture when you want voice display — discover-overlay
-# reconnects to the socket automatically. Run `discover-overlay --configure`
-# once in desktop mode first to authorize the connection and set overlay
-# options.
+# Runs twice: the outer invocation builds the bubblewrap home mask and
+# re-execs itself inside it with --inner; the inner invocation starts the
+# session apps (Discord, voice overlay) and execs Steam Big Picture.
 
-# Start the Discord overlay (best-effort; never block the Steam session).
-# Backgrounded with a short delay so gamescope's Xwayland is ready first.
-if command -v discover-overlay >/dev/null 2>&1; then
-    ( sleep 2; env -u WAYLAND_DISPLAY GDK_BACKEND=x11 discover-overlay ) &
+# ----------------------------------------------------------------------------
+# Inner: everything here runs INSIDE the mask, under gamescope.
+#
+# gamescope exposes an Xwayland X11 display to its children (DISPLAY) rather
+# than a Wayland socket; WAYLAND_DISPLAY is unset for the GUI apps so Electron
+# and GTK take X11. Per `discover-overlay --help`: "For gamescope
+# compatibility ensure ENV has 'GDK_BACKEND=x11'".
+# ----------------------------------------------------------------------------
+start_session_apps() {
+    # Discord client: voice-ready at session start; the overlay reads its IPC
+    # socket ($XDG_RUNTIME_DIR/discord-ipc-0). Bring its UI up from Big
+    # Picture via the "Discord" non-Steam shortcut (game-mode-discord shim).
+    if command -v discord >/dev/null 2>&1; then
+        ( sleep 4; env -u WAYLAND_DISPLAY discord --start-minimized ) &
+    fi
+    # Voice overlay (best-effort; never block the Steam session). Configure
+    # once in desktop mode with `discover-overlay --configure`.
+    if command -v discover-overlay >/dev/null 2>&1; then
+        ( sleep 2; env -u WAYLAND_DISPLAY GDK_BACKEND=x11 discover-overlay ) &
+    fi
+}
+
+if [ "${1:-}" = "--inner" ]; then
+    start_session_apps
+    exec steam -gamepadui -steamos3
 fi
 
 # ----------------------------------------------------------------------------
-# Filesystem mask: run Steam (and every game under it) inside a bubblewrap
-# sandbox that presents a curated view of $HOME. Secrets and personal data
-# (.ssh, .gnupg, keyrings, repos, browser profiles, ...) are simply ABSENT
-# from the sandbox; $HOME is read-only except for the explicit game binds, so
-# stray writes fail loudly (EROFS) instead of vanishing.
+# Outer: filesystem mask. Run Steam (and every game under it) inside a
+# bubblewrap sandbox that presents a curated view of $HOME. Secrets and
+# personal data (.ssh, .gnupg, keyrings, repos, browser profiles, ...) are
+# simply ABSENT from the sandbox; $HOME is read-only except for the explicit
+# binds, so stray writes fail loudly (EROFS) instead of vanishing.
 #
 # Landlock was evaluated first but pressure-vessel must enumerate / (it
 # opendir()s /proc/self/root to mirror the host into its container), and
@@ -39,6 +52,7 @@ fi
 # ----------------------------------------------------------------------------
 if [ -e {{games_dir}}/.game-mode-no-mask ] || ! command -v bwrap >/dev/null 2>&1; then
     echo "game-mode-wrapper: MASK DISABLED (flag file or bwrap missing)" >&2
+    start_session_apps
     exec steam -gamepadui -steamos3
 fi
 
@@ -65,6 +79,10 @@ maybe_bind --bind "$HOME/.local/share/Steam"
 maybe_bind --bind "$HOME/.steam"
 maybe_bind --bind "$HOME/.cache"                       # mesa/radv shader caches
 maybe_bind --ro-bind "$HOME/.local/bin"                # launch-option wrappers (ror2-mods-update)
+# Discord in-session: client state, overlay config + auth token, Electron NSS db
+maybe_bind --bind "$HOME/.config/discord"
+maybe_bind --bind "$HOME/.config/discover-overlay"
+maybe_bind --bind "$HOME/.pki"
 # Native-game / engine state
 maybe_bind --bind "$HOME/.local/share/PrismLauncher"   # Minecraft instances + saves
 maybe_bind --bind "$HOME/.local/share/SlayTheSpire2"
@@ -77,5 +95,5 @@ maybe_bind --bind "$HOME/.config/r2modman"
 maybe_bind --bind "$HOME/.config/r2modmanPlus-local"
 MASK+=(--remount-ro "$HOME")
 
-echo "game-mode-wrapper: launching Steam inside bwrap home mask" >&2
-exec bwrap "${MASK[@]}" -- steam -gamepadui -steamos3
+echo "game-mode-wrapper: launching session inside bwrap home mask" >&2
+exec bwrap "${MASK[@]}" -- /etc/greetd/scripts/game-mode-wrapper.sh --inner

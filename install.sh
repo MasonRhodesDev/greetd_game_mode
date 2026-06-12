@@ -25,6 +25,7 @@ need steam          "pacman -S steam (requires the [multilib] repo)"
 need bwrap          "pacman -S bubblewrap (home mask for the game session)"
 need swaybg         "pacman -S swaybg (greeter background)"
 need qrencode       "pacman -S qrencode (one-time phone setup QRs)"
+need xdotool        "pacman -S xdotool (controller-driven Discord window in BP)"
 need python3        "pacman -S python"
 need cargo          "pacman -S rust (or rustup)"
 need curl           "pacman -S curl"
@@ -48,6 +49,10 @@ fi
 # Optional cosmetics / extras
 if ! pacman -Qi papirus-icon-theme &>/dev/null; then
     sudo pacman -S --noconfirm papirus-icon-theme
+fi
+# Discord client for in-session voice (the wrapper autostarts it when present)
+if ! pacman -Qi discord &>/dev/null; then
+    sudo pacman -S --noconfirm discord
 fi
 if command -v yay >/dev/null 2>&1; then
     # greeter GTK theme + Discord voice overlay (the wrapper only launches the
@@ -141,6 +146,16 @@ fi
 # Steam gamepadui "Switch to Desktop" hook: Steam execs steamos-session-select
 # from PATH; install our shim (ends the game session -> regreet greeter).
 sudo install -m755 greetd/scripts/steamos-session-select /usr/local/bin/steamos-session-select
+
+# Non-Steam shortcut target that focuses the in-session Discord window
+sudo install -m755 greetd/scripts/game-mode-discord /usr/local/bin/game-mode-discord
+
+# Bind sources for the home mask's Discord state (maybe_bind skips missing
+# paths, so create them for the game-session user)
+sudo -u "$GAMES_USER" mkdir -p \
+    "$(getent passwd "$GAMES_USER" | cut -d: -f6)/.config/discord" \
+    "$(getent passwd "$GAMES_USER" | cut -d: -f6)/.config/discover-overlay" \
+    "$(getent passwd "$GAMES_USER" | cut -d: -f6)/.pki"
 
 # Fill in the template placeholders in the deployed copies
 echo "Configuring templates (vt=$VT_NUMBER, games user=$GAMES_USER, games dir=$GAMES_DIR)..."

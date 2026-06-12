@@ -1,0 +1,15 @@
+#!/bin/bash
+# Non-Steam shortcut target: bring the in-session Discord window to the front
+# and stay alive so Steam keeps it focused (a shortcut pointing straight at
+# `discord` exits instantly via single-instance handoff and Steam drops back
+# to Big Picture). Steam Input's desktop layout drives the UI: right
+# stick/pad = mouse, A = click. "Stop" in BP kills this and returns to BP;
+# the Discord client itself keeps running minimized.
+#
+# Discord is started by game-mode-wrapper.sh at session start; if it is not
+# up yet, wait for its window.
+if ! xdotool search --sync --onlyvisible --class discord windowactivate; then
+    echo "game-mode-discord: no Discord window found" >&2
+    exit 1
+fi
+exec sleep infinity
