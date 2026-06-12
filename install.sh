@@ -133,6 +133,11 @@ sudo install -m644 systemd/access-gate-verifier.service /etc/systemd/system/acce
 sudo systemctl daemon-reload
 sudo systemctl enable access-gate-verifier.service
 sudo systemctl restart access-gate-verifier.service
+# wait for the verifier to come up before querying enrollment state
+for _ in $(seq 1 15); do
+    curl -s --max-time 2 127.0.0.1:8730/ >/dev/null && break
+    sleep 1
+done
 
 # HTTPS for the verifier on the tailnet (WebAuthn needs a real TLS origin)
 sudo tailscale serve --bg --https=443 http://127.0.0.1:8730 || \
