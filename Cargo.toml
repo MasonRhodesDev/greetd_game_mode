@@ -16,6 +16,10 @@ path = "src/main.rs"
 name = "generate_constants"
 path = "src/bin/generate_constants.rs"
 
+[[bin]]
+name = "game-mode-steam-shortcut"
+path = "src/bin/steam_shortcut.rs"
+
 [dependencies]
 anyhow = "1.0"
 dialoguer = "0.11"

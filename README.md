@@ -162,15 +162,20 @@ Discord runs **inside** the gamescope session with full controller support:
   user's `~/homebrew` (https://decky.xyz); `install.sh` enables its service
   when present.
 
-One-time setup, on the desktop (state lands in dirs the mask binds in):
+Setup is automated by the installer: the "Discord" non-Steam shortcut is
+written into `shortcuts.vdf` by `game-mode-steam-shortcut` (Rust, binary-VDF,
+idempotent, backs the file up; requires Steam to be closed — the installer
+warns and prints the retry command otherwise). discover-overlay needs no
+config: its defaults show the voice overlay whenever you're in a channel
+(`discover-overlay --configure` on the desktop only to restyle/reposition).
 
-1. With Discord running: `discover-overlay --configure` → authorize, enable
-   the voice overlay, pick a corner.
-2. Discord → Settings → Voice & Video → **Voice Activity** (hands-free mic;
-   no controller PTT binding needed).
-3. Desktop Steam → Add a Non-Steam Game → browse to
-   `/usr/local/bin/game-mode-discord`, rename it "Discord". (Programmatic
-   shortcuts.vdf editing needs Steam closed — not worth scripting.)
+First-use notes:
+
+- The first time the overlay connects, Discord shows an authorization prompt —
+  approve it once (works in-session via the controller with the Discord
+  shortcut focused, or on the desktop).
+- Discord's default mic mode is already **Voice Activity**; only check
+  Settings → Voice & Video if you previously set push-to-talk.
 
 ## Logging & troubleshooting
 
