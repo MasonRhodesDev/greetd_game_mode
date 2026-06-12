@@ -25,7 +25,7 @@ vt = {{vt}}
 # No -W/-H/-O flags: embedded gamescope auto-picks the connected output and its
 # EDID-preferred mode. HDR flags are graceful no-ops on non-HDR displays.
 command = "/usr/bin/gamescope -e --hdr-enabled --hdr-itm-enabled --hide-cursor-delay 3000 -- /etc/greetd/scripts/game-mode-wrapper.sh"
-user = "mason"
+user = "{{games_user}}"
 
 [default_session]
 # regreet GTK4 greeter under Hyprland, identical to config_default.toml. Reached

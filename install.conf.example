@@ -1,0 +1,9 @@
+# Per-machine overrides for install.sh (shell syntax). Copy to install.conf
+# and edit; install.conf is gitignored. Without it, the defaults compiled into
+# src/config.rs apply (see generate_constants).
+
+# The user the game session autologs in as, their group, and the shared game
+# library directory (bound read-write into the sandbox).
+#GAMES_USER=games
+#GAMES_GROUP=games
+#GAMES_DIR=/games

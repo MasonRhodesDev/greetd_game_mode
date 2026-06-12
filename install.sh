@@ -68,6 +68,14 @@ cargo build --release
 echo "Loading configuration constants..."
 eval "$(target/release/generate_constants)"
 
+# Optional per-machine overrides (GAMES_USER, GAMES_GROUP, GAMES_DIR) — see
+# install.conf.example.
+if [ -f install.conf ]; then
+    echo "Applying install.conf overrides..."
+    # shellcheck disable=SC1091
+    . install.conf
+fi
+
 echo "Installing game_mode..."
 
 # Set up games user and group
@@ -118,10 +126,11 @@ fi
 # from PATH; install our shim (ends the game session -> regreet greeter).
 sudo install -m755 greetd/scripts/steamos-session-select /usr/local/bin/steamos-session-select
 
-# Replace TTY placeholder in config files
-echo "Configuring TTY settings..."
+# Fill in the template placeholders in the deployed copies
+echo "Configuring templates (vt=$VT_NUMBER, games user=$GAMES_USER, games dir=$GAMES_DIR)..."
 sudo sed -i "s/{{vt}}/$VT_NUMBER/g" "$GREETD_DIR/config_default.toml"
-sudo sed -i "s/{{vt}}/$VT_NUMBER/g" "$GREETD_DIR/game_mode_login.toml"
+sudo sed -i "s/{{vt}}/$VT_NUMBER/g; s/{{games_user}}/$GAMES_USER/g" "$GREETD_DIR/game_mode_login.toml"
+sudo sed -i "s|{{games_dir}}|$GAMES_DIR|g" "$GREETD_DIR/scripts/game-mode-wrapper.sh"
 
 # Set up config files
 echo "Setting up configuration files..."

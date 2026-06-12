@@ -48,9 +48,8 @@ format = "%a %H:%M"
 # How often to update the text
 resolution = "500ms"
 
-# Override system timezone (IANA Time Zone Database name, aka /etc/zoneinfo path)
-# Remove to use the system time zone.
-timezone = "America/Chicago"
+# Uses the system time zone. To override, set an IANA name, e.g.:
+# timezone = "America/Chicago"
 
 # Ask GTK to make the label at least this wide. This helps keeps the parent element layout and width consistent.
 # Experiment with different widths, the interpretation of this value is entirely up to GTK.

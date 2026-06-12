@@ -9,8 +9,9 @@ pub const GAME_MODE_CONFIG: &str = "game_mode_login.toml";
 pub const GREETER_USER: &str = "greeter";
 pub const REQUIRED_GROUPS: &[&str] = &["input", "video"];
 pub const VT_NUMBER: u32 = 1;
-// Machine-specific build-time config: the user/group/dir the game session runs
-// as. Edit before building for another machine.
+// Defaults for the user/group/dir the game session runs as. These are only
+// consumed by install.sh (via generate_constants) and can be overridden per
+// machine with an install.conf — see install.conf.example.
 pub const GAMES_USER: &str = "mason";
 pub const GAMES_GROUP: &str = "mason";
 pub const GAMES_DIR: &str = "/games";

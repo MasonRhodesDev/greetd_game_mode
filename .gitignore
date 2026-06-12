@@ -1,3 +1,4 @@
 /target
 /tmp
+/install.conf
 __pycache__/

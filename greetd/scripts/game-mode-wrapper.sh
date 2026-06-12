@@ -35,9 +35,9 @@ fi
 # root. Verified: SLR/pressure-vessel (nested bwrap) runs fine inside this.
 #
 # Extend-on-breakage: if a game needs another dir, add a --bind line.
-# Escape hatch while debugging: `touch /games/.game-mode-no-mask` and relaunch.
+# Escape hatch while debugging: `touch {{games_dir}}/.game-mode-no-mask` and relaunch.
 # ----------------------------------------------------------------------------
-if [ -e /games/.game-mode-no-mask ] || ! command -v bwrap >/dev/null 2>&1; then
+if [ -e {{games_dir}}/.game-mode-no-mask ] || ! command -v bwrap >/dev/null 2>&1; then
     echo "game-mode-wrapper: MASK DISABLED (flag file or bwrap missing)" >&2
     exec steam -gamepadui -steamos3
 fi
@@ -57,7 +57,7 @@ MASK=(
     # Sockets/IPC/state: X11+Wayland (/tmp), runtime dir + dbus + pipewire (/run)
     --bind /tmp /tmp --bind /run /run
     # Game library
-    --bind /games /games
+    --bind {{games_dir}} {{games_dir}}
     # Curated home: starts empty, gains only the binds below, then goes RO
     --tmpfs "$HOME"
 )

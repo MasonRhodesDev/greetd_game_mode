@@ -99,9 +99,9 @@ in one, or relax Bitwarden's vault timeout.
   origin is the tailnet FQDN.
 - A phone on the tailnet with a passkey provider, and a gamepad with a
   Guide/Mode button.
-- The game session autologin user is a build-time constant
-  (`GAMES_USER` in `src/config.rs`, with `GAMES_DIR` for the library);
-  edit before building for another machine.
+- The game session autologin user, group, and game library directory are
+  configurable per machine: `cp install.conf.example install.conf` and edit
+  (defaults come from `src/config.rs`).
 
 ## Installation
 
