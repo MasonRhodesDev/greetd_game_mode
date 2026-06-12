@@ -87,7 +87,7 @@ maybe_bind --bind "$HOME/.cache"                       # mesa/radv shader caches
 maybe_bind --ro-bind "$HOME/.local/bin"                # launch-option wrappers (ror2-mods-update)
 # Discord in-session: client state, overlay config + auth token, Electron NSS db
 maybe_bind --bind "$HOME/.config/discord"
-maybe_bind --bind "$HOME/.config/discover-overlay"
+maybe_bind --bind "$HOME/.config/discover_overlay"   # NB underscore: the app ignores the package's hyphen
 maybe_bind --bind "$HOME/.pki"
 # Native-game / engine state
 maybe_bind --bind "$HOME/.local/share/PrismLauncher"   # Minecraft instances + saves

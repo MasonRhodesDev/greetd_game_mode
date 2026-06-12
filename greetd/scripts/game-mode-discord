@@ -8,5 +8,8 @@
 # (Guide button) leaves it running in the background, so voice and the
 # discover-overlay stay live. "Stop"/"Exit" in BP closes it.
 #
-# WAYLAND_DISPLAY is unset so Electron takes gamescope's Xwayland display.
-exec env -u WAYLAND_DISPLAY discord
+# Env fixes:
+#  - WAYLAND_DISPLAY unset: Electron must take gamescope's Xwayland display.
+#  - LD_PRELOAD unset: Steam injects gameoverlayrenderer.so into shortcut
+#    launches, which crashes Electron's zygote (broken pipe at startup).
+exec env -u WAYLAND_DISPLAY -u LD_PRELOAD discord

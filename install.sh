@@ -160,7 +160,7 @@ sudo -u "$GAMES_USER" -H game-mode-steam-shortcut --name Discord --exe /usr/loca
 # paths, so create them for the game-session user)
 sudo -u "$GAMES_USER" mkdir -p \
     "$(getent passwd "$GAMES_USER" | cut -d: -f6)/.config/discord" \
-    "$(getent passwd "$GAMES_USER" | cut -d: -f6)/.config/discover-overlay" \
+    "$(getent passwd "$GAMES_USER" | cut -d: -f6)/.config/discover_overlay" \
     "$(getent passwd "$GAMES_USER" | cut -d: -f6)/.pki"
 
 # Fill in the template placeholders in the deployed copies
