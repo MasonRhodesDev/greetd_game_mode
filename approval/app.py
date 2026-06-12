@@ -110,13 +110,17 @@ def send_push(payload: dict):
     except (FileNotFoundError, ValueError):
         return
     try:
-        send_webpush(
+        resp = send_webpush(
             subscription_info=sub,
             data=json.dumps(payload),
             vapid_private_key=str(VAPID_KEY_FILE),
             vapid_claims={"sub": PUSH_SUB},
             ttl=REQUEST_TTL,
+            # High urgency: dozing Android defers normal-priority pushes
+            # until a maintenance window; approvals must wake the phone.
+            headers={"Urgency": "high"},
         )
+        print(f"access-gate-verifier: web push sent ({resp.status_code})", flush=True)
     except WebPushException as e:
         # 404/410 = subscription gone; drop it so /setup reopens.
         if e.response is not None and e.response.status_code in (404, 410):
