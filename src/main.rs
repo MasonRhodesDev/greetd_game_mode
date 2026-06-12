@@ -68,6 +68,17 @@ fn setup_logging() -> Result<()> {
     Ok(())
 }
 
+/// State of a logind session ("active", "online", "closing", ...). Sessions in
+/// "closing" linger after logout while background processes of the user are
+/// still alive (logind KillUserProcesses=no) and must not count as logged in.
+fn session_state(session_id: &str) -> String {
+    Command::new("loginctl")
+        .args(["show-session", session_id, "--property", "State", "--value"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default()
+}
+
 fn is_user_logged_in_on_tty(tty: &str) -> Result<bool> {
     let output = Command::new("loginctl")
         .arg("-j")
@@ -75,16 +86,23 @@ fn is_user_logged_in_on_tty(tty: &str) -> Result<bool> {
         .output()?;
     let sessions: Vec<Value> = serde_json::from_slice(&output.stdout)?;
     debug!("loginctl sessions: {}", serde_json::to_string_pretty(&sessions)?);
-    
-    // Check if there are any non-greeter sessions on the specified TTY
+
+    // Check if there are any live non-greeter login sessions on the specified
+    // TTY. Service-class sessions ("manager", "background", ...) and sessions
+    // stuck in "closing" after logout don't count.
     let result = sessions.iter().any(|session| {
         let user = session["user"].as_str().unwrap_or("");
         let session_tty = session["tty"].as_str().unwrap_or("");
+        let class = session["class"].as_str().unwrap_or("");
+        let id = session["session"].as_str().unwrap_or("");
         let is_non_greeter = user != "greeter";
         let is_on_target_tty = session_tty == tty;
-        debug!("Session user: {}, tty: {}, is_non_greeter: {}, is_on_target_tty: {}", 
-            user, session_tty, is_non_greeter, is_on_target_tty);
-        is_non_greeter && is_on_target_tty
+        let is_login_class = class.starts_with("user");
+        let candidate = is_non_greeter && is_on_target_tty && is_login_class;
+        let is_live = candidate && session_state(id) != "closing";
+        debug!("Session {} user: {}, tty: {}, class: {}, is_non_greeter: {}, is_on_target_tty: {}, is_live: {}",
+            id, user, session_tty, class, is_non_greeter, is_on_target_tty, is_live);
+        is_live
     });
     debug!("User logged in on TTY {}: {}", tty, result);
     Ok(result)
