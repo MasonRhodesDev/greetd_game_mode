@@ -42,10 +42,15 @@ fn put_int(out: &mut Vec<u8>, key: &str, value: u32) {
     out.extend_from_slice(&value.to_le_bytes());
 }
 
+/// Steam's classic non-Steam appid: crc32(Exe + AppName) with the top bit set.
+/// Grid art (incl. the square `<appid>_icon.png`) keys off this value.
+fn shortcut_appid(exe_quoted: &str, name: &str) -> u32 {
+    crc32(format!("{exe_quoted}{name}").as_bytes()) | 0x8000_0000
+}
+
 /// Serialize one shortcut entry map keyed by its index.
 fn entry_bytes(index: usize, name: &str, exe_quoted: &str, start_dir_quoted: &str) -> Vec<u8> {
-    // Steam's classic non-Steam appid: crc32(Exe + AppName) with the top bit set.
-    let appid = crc32(format!("{exe_quoted}{name}").as_bytes()) | 0x8000_0000;
+    let appid = shortcut_appid(exe_quoted, name);
 
     let mut e = Vec::new();
     e.push(TYPE_MAP);
@@ -82,6 +87,7 @@ type Span = (usize, usize);
 #[derive(Default)]
 struct EntryInfo {
     name: String,
+    appid: u32,
     exe_span: Option<Span>,
     dir_span: Option<Span>,
 }
@@ -128,9 +134,13 @@ impl<'a> Scanner<'a> {
                     }
                 }
                 TYPE_INT => {
-                    let _ = self.cstring()?;
+                    let (key, _) = self.cstring()?;
                     if self.pos + 4 > self.buf.len() {
                         return Err("unexpected EOF in int".into());
+                    }
+                    if key.eq_ignore_ascii_case("appid") {
+                        let bytes = &self.buf[self.pos..self.pos + 4];
+                        info.appid = u32::from_le_bytes(bytes.try_into().unwrap());
                     }
                     self.pos += 4;
                 }
@@ -177,9 +187,10 @@ fn splice(buf: &[u8], mut edits: Vec<(Span, String)>) -> Vec<u8> {
     out
 }
 
-fn add_to_file(path: &Path, name: &str, exe: &str, start_dir: &str) -> Result<&'static str, String> {
+fn add_to_file(path: &Path, name: &str, exe: &str, start_dir: &str) -> Result<(&'static str, u32), String> {
     let exe_quoted = format!("\"{exe}\"");
     let dir_quoted = format!("\"{start_dir}\"");
+    let new_appid = shortcut_appid(&exe_quoted, name);
 
     let buf = match fs::read(path) {
         Ok(b) if !b.is_empty() => b,
@@ -193,7 +204,7 @@ fn add_to_file(path: &Path, name: &str, exe: &str, start_dir: &str) -> Result<&'
             out.push(END_MAP);
             out.push(END_MAP);
             fs::write(path, out).map_err(|e| e.to_string())?;
-            return Ok("created");
+            return Ok(("created", new_appid));
         }
     };
 
@@ -207,7 +218,7 @@ fn add_to_file(path: &Path, name: &str, exe: &str, start_dir: &str) -> Result<&'
             .map(|(s, e)| String::from_utf8_lossy(&buf[s..e]).into_owned())
             .unwrap_or_default();
         if current_exe == exe_quoted {
-            return Ok("unchanged");
+            return Ok(("unchanged", existing.appid));
         }
         let mut edits = Vec::new();
         if let Some(span) = existing.exe_span {
@@ -221,7 +232,7 @@ fn add_to_file(path: &Path, name: &str, exe: &str, start_dir: &str) -> Result<&'
         }
         fs::copy(path, path.with_extension("vdf.bak-game-mode")).map_err(|e| e.to_string())?;
         fs::write(path, splice(&buf, edits)).map_err(|e| e.to_string())?;
-        return Ok("updated");
+        return Ok(("updated", existing.appid));
     }
 
     if buf.len() < 2 || buf[buf.len() - 2] != END_MAP || buf[buf.len() - 1] != END_MAP {
@@ -233,26 +244,43 @@ fn add_to_file(path: &Path, name: &str, exe: &str, start_dir: &str) -> Result<&'
     out.push(END_MAP);
     out.push(END_MAP);
     fs::write(path, out).map_err(|e| e.to_string())?;
-    Ok("added")
+    Ok(("added", new_appid))
+}
+
+/// Copy `src` to `<grid>/<appid>_icon.png` (the square library icon), unless
+/// an identical file is already there. Returns Ok(true) if written.
+fn write_icon_art(config_dir: &Path, appid: u32, src: &Path) -> Result<bool, String> {
+    let grid = config_dir.join("grid");
+    fs::create_dir_all(&grid).map_err(|e| e.to_string())?;
+    let dst = grid.join(format!("{appid}_icon.png"));
+    let data = fs::read(src).map_err(|e| format!("read {}: {e}", src.display()))?;
+    if fs::read(&dst).map(|cur| cur == data).unwrap_or(false) {
+        return Ok(false);
+    }
+    fs::write(&dst, &data).map_err(|e| e.to_string())?;
+    Ok(true)
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut name = None;
     let mut exe = None;
+    let mut icon = None;
     let mut i = 1;
     while i + 1 < args.len() {
         match args[i].as_str() {
             "--name" => name = Some(args[i + 1].clone()),
             "--exe" => exe = Some(args[i + 1].clone()),
+            "--icon" => icon = Some(args[i + 1].clone()),
             _ => {}
         }
         i += 2;
     }
     let (Some(name), Some(exe)) = (name, exe) else {
-        eprintln!("usage: game-mode-steam-shortcut --name <AppName> --exe </path/to/exe>");
+        eprintln!("usage: game-mode-steam-shortcut --name <AppName> --exe </path/to/exe> [--icon <png>]");
         std::process::exit(1);
     };
+    let icon = icon.map(PathBuf::from);
     let start_dir = Path::new(&exe)
         .parent()
         .map(|p| p.to_string_lossy().into_owned())
@@ -288,9 +316,19 @@ fn main() {
         }
         let vdf = config_dir.join("shortcuts.vdf");
         match add_to_file(&vdf, &name, &exe, &start_dir) {
-            Ok(outcome) => {
+            Ok((outcome, appid)) => {
                 println!("{name:?} shortcut {outcome} for Steam user {id}");
                 touched = true;
+                // Square library icon (<appid>_icon.png): Steam stores a
+                // misnamed .ico for some shortcuts, which gamepadui can't
+                // render (blank grey square). A real PNG fixes it.
+                if let Some(ref src) = icon {
+                    match write_icon_art(&config_dir, appid, src) {
+                        Ok(true) => println!("  wrote square icon {appid}_icon.png"),
+                        Ok(false) => {}
+                        Err(e) => eprintln!("  icon art skipped: {e}"),
+                    }
+                }
             }
             Err(e) => {
                 eprintln!("user {id}: {e}");

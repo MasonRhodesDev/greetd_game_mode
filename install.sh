@@ -156,7 +156,8 @@ sudo install -m755 greetd/scripts/game-mode-overlay /usr/local/bin/game-mode-ove
 # Add the "Discord" non-Steam shortcut to shortcuts.vdf (idempotent; refuses
 # while Steam is running because Steam rewrites the file on exit)
 sudo install -m755 target/release/game-mode-steam-shortcut /usr/local/bin/game-mode-steam-shortcut
-sudo -u "$GAMES_USER" -H game-mode-steam-shortcut --name Discord --exe /usr/local/bin/game-mode-discord || \
+DISCORD_ICON=$(ls -S /usr/share/icons/hicolor/*/apps/discord.png 2>/dev/null | head -1)
+sudo -u "$GAMES_USER" -H game-mode-steam-shortcut --name Discord --exe /usr/local/bin/game-mode-discord ${DISCORD_ICON:+--icon "$DISCORD_ICON"} || \
     echo "  WARN: Discord shortcut not added; close Steam and run: game-mode-steam-shortcut --name Discord --exe /usr/local/bin/game-mode-discord"
 
 # Bind sources for the home mask's Discord state (maybe_bind skips missing
