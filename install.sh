@@ -161,10 +161,27 @@ sudo -u "$GAMES_USER" -H game-mode-steam-shortcut --name Discord --exe /usr/loca
 
 # Bind sources for the home mask's Discord state (maybe_bind skips missing
 # paths, so create them for the game-session user)
+GAMES_HOME="$(getent passwd "$GAMES_USER" | cut -d: -f6)"
 sudo -u "$GAMES_USER" mkdir -p \
-    "$(getent passwd "$GAMES_USER" | cut -d: -f6)/.config/discord" \
-    "$(getent passwd "$GAMES_USER" | cut -d: -f6)/.config/discover_overlay" \
-    "$(getent passwd "$GAMES_USER" | cut -d: -f6)/.pki"
+    "$GAMES_HOME/.config/discord" \
+    "$GAMES_HOME/.config/discover_overlay" \
+    "$GAMES_HOME/.pki"
+
+# discover-overlay defaults tuned for the couch: round avatars (upstream
+# defaults square_avatar=True). Idempotent merge that preserves the [cache]
+# section the overlay writes its auth token into.
+sudo -u "$GAMES_USER" python3 - "$GAMES_HOME/.config/discover_overlay/config.ini" <<'PY'
+import configparser, sys
+path = sys.argv[1]
+cfg = configparser.ConfigParser()
+cfg.read(path)
+if not cfg.has_section("main"):
+    cfg.add_section("main")
+cfg.setdefault("main", {})
+cfg["main"]["square_avatar"] = "False"   # round user icons
+with open(path, "w") as f:
+    cfg.write(f)
+PY
 
 # Fill in the template placeholders in the deployed copies
 echo "Configuring templates (vt=$VT_NUMBER, games user=$GAMES_USER, games dir=$GAMES_DIR)..."
