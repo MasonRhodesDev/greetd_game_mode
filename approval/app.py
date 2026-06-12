@@ -372,8 +372,9 @@ _PAGE_APPROVE = """<!doctype html><meta name=viewport content="width=device-widt
 <script>""" + _JS_HELPERS + """
 const RID='__RID__',m=document.getElementById('msg'),ok=document.getElementById('ok'),
  no=document.getElementById('no'),hd=document.getElementById('hd');
+function done(){setTimeout(()=>window.close(),1500);}
 no.onclick=async()=>{await fetch('/approve/'+RID+'/deny',{method:'POST'});
- hd.textContent='Denied \\u2715';m.textContent='';no.style.display=ok.style.display='none';};
+ hd.textContent='Denied \\u2715';m.textContent='';no.style.display=ok.style.display='none';done();};
 async function approve(){
  m.textContent='Confirm with your fingerprint\\u2026';
  try{
@@ -386,7 +387,7 @@ async function approve(){
    authenticatorData:bufToB64u(r.authenticatorData),clientDataJSON:bufToB64u(r.clientDataJSON),
    signature:bufToB64u(r.signature),userHandle:r.userHandle?bufToB64u(r.userHandle):null}};
   const res=await fetch('/approve/'+RID+'/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-  if(res.ok){hd.textContent='Approved \\u2713';m.textContent='';no.style.display=ok.style.display='none';}
+  if(res.ok){hd.textContent='Approved \\u2713';m.textContent='';no.style.display=ok.style.display='none';done();}
   else{m.textContent='Verify failed: '+await res.text();}
  }catch(e){
   // Auto-fire blocked or dismissed: fall back to an explicit button.
@@ -420,6 +421,8 @@ document.getElementById('go').onclick=async()=>{
 };</script></body>"""
 
 _SW_JS = """
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(clients.claim()));
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data.json(); } catch (_) {}
@@ -432,7 +435,18 @@ self.addEventListener('push', e => {
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  e.waitUntil(clients.openWindow(e.notification.data.url));
+  e.waitUntil((async () => {
+    // Reuse an existing approve tab instead of littering new ones.
+    const wins = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const old = wins.find(w => new URL(w.url).pathname.startsWith('/approve/'));
+    if (old) {
+      try {
+        await old.navigate(e.notification.data.url);
+        return old.focus();
+      } catch (_) { /* uncontrolled client; fall through */ }
+    }
+    return clients.openWindow(e.notification.data.url);
+  })());
 });
 """
 

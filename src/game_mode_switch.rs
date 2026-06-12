@@ -35,6 +35,17 @@ pub fn switch_to_game_mode() -> Result<()> {
 
     set_config_symlink(&game_mode_config, &config_path)?;
 
+    // greetd only honours [initial_session] on its first run since boot,
+    // tracked by the presence of this runfile — remove it or the restart
+    // below lands on the greeter instead of the game session. The exact
+    // command is allowed in sudoers (see install.sh).
+    let status = Command::new("sudo")
+        .args(["/usr/bin/rm", "-f", "/run/greetd.run"])
+        .status()?;
+    if !status.success() {
+        anyhow::bail!("failed to remove greetd runfile (sudoers entry missing?)");
+    }
+
     // Restart greetd service
     let cmd = "sudo /usr/bin/systemctl restart greetd.service";
     debug!("Running command: {}", cmd);
