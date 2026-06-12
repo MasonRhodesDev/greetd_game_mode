@@ -22,17 +22,18 @@ Three cooperating pieces:
 
 ```
 Guide button at greeter
-  └─ game-mode daemon ── fail-closed gate (src/approval.rs)
-       └─ /usr/local/bin/game-mode-approve
-            ├─ POST /request to verifier (127.0.0.1:8731, localhost-only)
-            │    └─ verifier Web-Pushes the phone ("Enter game mode?")
-            ├─ on-screen greeter banner: "Approval sent to your phone…"
-            └─ polls /result/<id> until approved/denied/timeout (90s)
+  └─ game-mode daemon ── fail-closed gate, built into the binary (src/approval.rs)
+       ├─ POST /request to verifier (127.0.0.1:8731, localhost-only)
+       │    └─ verifier Web-Pushes the phone ("Enter game mode?")
+       ├─ on-screen greeter banner: "Approval sent to your phone…"
+       └─ polls /result/<id> until approved/denied/timeout (90s)
 phone: tap notification ── approve page auto-fires the passkey prompt
   └─ fingerprint ── WebAuthn assertion verified against the enrolled key
 approved ── blank VT ── rm /run/greetd.run ── symlink game config ── restart greetd
   └─ greetd [initial_session]: gamescope + Steam Big Picture (bwrap home mask)
 ```
+
+Test the gate without a gamepad: `sudo -u greeter game-mode --test-approval`
 
 Security model:
 
@@ -53,8 +54,7 @@ Components on disk after install:
 
 | Path | What |
 |---|---|
-| `/usr/local/bin/game-mode` | daemon binary |
-| `/usr/local/bin/game-mode-approve` | request/poll helper (runs as greeter) |
+| `/usr/local/bin/game-mode` | daemon binary (incl. the approval client + greeter banners) |
 | `/usr/local/bin/steamos-session-select` | Steam "Switch to Desktop" hook (logs to `/tmp/steamos-session-select.log`) |
 | `/opt/game-mode/approval/` | verifier (Flask + py_webauthn + pywebpush, own venv) |
 | `/etc/game-mode/approval.env` | verifier + helper config (RP ID, ports, timeout) |

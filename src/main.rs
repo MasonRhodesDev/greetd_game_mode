@@ -288,6 +288,14 @@ fn main() -> Result<()> {
         eprintln!("Failed to setup logging: {}", e);
         return Err(e.into());
     }
+
+    // Exercise the approval gate without a gamepad (run as the greeter user).
+    if env::args().any(|a| a == "--test-approval") {
+        let ok = approval::require_approval();
+        println!("approval result: {}", if ok { "APPROVED" } else { "NOT APPROVED" });
+        std::process::exit(if ok { 0 } else { 1 });
+    }
+
     info!("Game mode service starting");
 
     // Reset to desktop mode on startup so game mode is one-shot: the next

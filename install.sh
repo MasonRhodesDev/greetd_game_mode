@@ -68,13 +68,29 @@ cargo build --release
 echo "Loading configuration constants..."
 eval "$(target/release/generate_constants)"
 
-# Optional per-machine overrides (GAMES_USER, GAMES_GROUP, GAMES_DIR) — see
-# install.conf.example.
+# Game-session identity: defaults to whoever runs the installer, prompts on
+# the first interactive run, and persists the answers in install.conf so
+# re-runs are silent. Delete install.conf (or edit it) to reconfigure.
 if [ -f install.conf ]; then
-    echo "Applying install.conf overrides..."
     # shellcheck disable=SC1091
     . install.conf
 fi
+if [ -z "${GAMES_USER:-}" ] || [ -z "${GAMES_GROUP:-}" ] || [ -z "${GAMES_DIR:-}" ]; then
+    DEF_USER="$(id -un)"; DEF_GROUP="$(id -gn)"; DEF_DIR="/games"
+    _u=""; _g=""; _d=""
+    if [ -t 0 ]; then
+        echo "Configure the game session (Enter accepts the default):"
+        read -rp "  autologin user [${GAMES_USER:-$DEF_USER}]: " _u
+        read -rp "  group [${GAMES_GROUP:-$DEF_GROUP}]: " _g
+        read -rp "  game library dir [${GAMES_DIR:-$DEF_DIR}]: " _d
+    fi
+    GAMES_USER="${_u:-${GAMES_USER:-$DEF_USER}}"
+    GAMES_GROUP="${_g:-${GAMES_GROUP:-$DEF_GROUP}}"
+    GAMES_DIR="${_d:-${GAMES_DIR:-$DEF_DIR}}"
+    printf 'GAMES_USER=%q\nGAMES_GROUP=%q\nGAMES_DIR=%q\n' "$GAMES_USER" "$GAMES_GROUP" "$GAMES_DIR" > install.conf
+    echo "Saved to install.conf."
+fi
+echo "Game session: user=$GAMES_USER group=$GAMES_GROUP dir=$GAMES_DIR"
 
 echo "Installing game_mode..."
 
@@ -188,7 +204,6 @@ if [ ! -f /etc/game-mode/approval.env ]; then
         "$FQDN" "$FQDN" "$FQDN" "${AG_VAPID_SUB:-access-gate@$FQDN}" | sudo tee /etc/game-mode/approval.env >/dev/null
     sudo chmod 644 /etc/game-mode/approval.env
 fi
-sudo install -m755 bin/game-mode-approve /usr/local/bin/game-mode-approve
 sudo install -m644 systemd/access-gate-verifier.service /etc/systemd/system/access-gate-verifier.service
 sudo systemctl daemon-reload
 sudo systemctl enable access-gate-verifier.service

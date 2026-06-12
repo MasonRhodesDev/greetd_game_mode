@@ -9,12 +9,9 @@ pub const GAME_MODE_CONFIG: &str = "game_mode_login.toml";
 pub const GREETER_USER: &str = "greeter";
 pub const REQUIRED_GROUPS: &[&str] = &["input", "video"];
 pub const VT_NUMBER: u32 = 1;
-// Defaults for the user/group/dir the game session runs as. These are only
-// consumed by install.sh (via generate_constants) and can be overridden per
-// machine with an install.conf — see install.conf.example.
-pub const GAMES_USER: &str = "mason";
-pub const GAMES_GROUP: &str = "mason";
-pub const GAMES_DIR: &str = "/games";
+// The user/group/dir the game session runs as are install-time settings, not
+// build-time: install.sh prompts on first run (defaulting to the invoking
+// user) and persists the answers in install.conf.
 
 // Default log filter is info; set RUST_LOG (e.g. in game-mode.service) for
 // debug logging at runtime instead of flipping this at build time.
