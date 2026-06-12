@@ -90,6 +90,7 @@ struct EntryInfo {
     appid: u32,
     exe_span: Option<Span>,
     dir_span: Option<Span>,
+    icon_span: Option<Span>,
 }
 
 struct Scanner<'a> {
@@ -131,6 +132,8 @@ impl<'a> Scanner<'a> {
                         info.exe_span = Some(span);
                     } else if key.eq_ignore_ascii_case("startdir") {
                         info.dir_span = Some(span);
+                    } else if key.eq_ignore_ascii_case("icon") {
+                        info.icon_span = Some(span);
                     }
                 }
                 TYPE_INT => {
@@ -248,16 +251,36 @@ fn add_to_file(path: &Path, name: &str, exe: &str, start_dir: &str) -> Result<(&
 }
 
 /// Copy `src` to `<grid>/<appid>_icon.png` (the square library icon), unless
-/// an identical file is already there. Returns Ok(true) if written.
-fn write_icon_art(config_dir: &Path, appid: u32, src: &Path) -> Result<bool, String> {
+/// an identical file is already there. Returns the destination path; the
+/// caller points the shortcut's icon field at it. Returns Ok((path, written)).
+fn write_icon_art(config_dir: &Path, appid: u32, src: &Path) -> Result<(PathBuf, bool), String> {
     let grid = config_dir.join("grid");
     fs::create_dir_all(&grid).map_err(|e| e.to_string())?;
     let dst = grid.join(format!("{appid}_icon.png"));
     let data = fs::read(src).map_err(|e| format!("read {}: {e}", src.display()))?;
     if fs::read(&dst).map(|cur| cur == data).unwrap_or(false) {
-        return Ok(false);
+        return Ok((dst, false));
     }
     fs::write(&dst, &data).map_err(|e| e.to_string())?;
+    Ok((dst, true))
+}
+
+/// Point a shortcut's `icon` field at `icon_path` (UNQUOTED — gamepadui opens
+/// the path literally, so quotes around it break the icon). Returns Ok(true)
+/// if changed.
+fn set_icon_field(vdf: &Path, name: &str, icon_path: &str) -> Result<bool, String> {
+    let buf = fs::read(vdf).map_err(|e| e.to_string())?;
+    let entries = parse(&buf)?;
+    let Some(entry) = entries.iter().find(|e| e.name.eq_ignore_ascii_case(name)) else {
+        return Err(format!("entry {name:?} not found"));
+    };
+    let Some(span) = entry.icon_span else {
+        return Err("entry has no icon field".into());
+    };
+    if String::from_utf8_lossy(&buf[span.0..span.1]) == icon_path {
+        return Ok(false);
+    }
+    fs::write(vdf, splice(&buf, vec![(span, icon_path.to_string())])).map_err(|e| e.to_string())?;
     Ok(true)
 }
 
@@ -319,13 +342,23 @@ fn main() {
             Ok((outcome, appid)) => {
                 println!("{name:?} shortcut {outcome} for Steam user {id}");
                 touched = true;
-                // Square library icon (<appid>_icon.png): Steam stores a
-                // misnamed .ico for some shortcuts, which gamepadui can't
-                // render (blank grey square). A real PNG fixes it.
+                // Square library icon: write a real PNG to grid/<appid>_icon.png
+                // AND point the shortcut's icon field at it, UNQUOTED. gamepadui
+                // reads the icon field and opens the path literally — quotes
+                // around it (Steam's/SRM's default) make it blank grey.
                 if let Some(ref src) = icon {
                     match write_icon_art(&config_dir, appid, src) {
-                        Ok(true) => println!("  wrote square icon {appid}_icon.png"),
-                        Ok(false) => {}
+                        Ok((dst, written)) => {
+                            if written {
+                                println!("  wrote square icon {appid}_icon.png");
+                            }
+                            let icon_str = dst.to_string_lossy();
+                            match set_icon_field(&vdf, &name, &icon_str) {
+                                Ok(true) => println!("  set icon field -> {icon_str}"),
+                                Ok(false) => {}
+                                Err(e) => eprintln!("  icon field not set: {e}"),
+                            }
+                        }
                         Err(e) => eprintln!("  icon art skipped: {e}"),
                     }
                 }
