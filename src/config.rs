@@ -97,8 +97,11 @@ impl Config {
             terminal: Terminal {
                 vt: VT_NUMBER,
             },
+            // Real root, not "": PathManager joins root + greetd_dir, and an
+            // empty root yields a *relative* "etc/greetd" that resolves under
+            // the daemon's working directory instead of /etc/greetd.
             path_manager: PathManager::new(
-                "",
+                "/",
                 GREETD_DIR,
                 CONFIG_FILE,
                 GAME_MODE_CONFIG
