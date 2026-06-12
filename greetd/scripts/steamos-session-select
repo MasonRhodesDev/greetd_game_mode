@@ -7,4 +7,10 @@
 # In this setup leaving game mode = ending the session: steam exits ->
 # gamescope exits -> greetd falls through to [default_session] (the regreet
 # login greeter) in desktop mode. Install to /usr/local/bin.
-exec steam -shutdown
+#
+# Logs to /tmp (shared into the bwrap sandbox) for debuggability.
+{
+    echo "$(date -Is) steamos-session-select invoked: args='$*' user=$(id -un)"
+    steam -shutdown
+    echo "$(date -Is) steam -shutdown exit: $?"
+} >> /tmp/steamos-session-select.log 2>&1

@@ -35,6 +35,15 @@ pub fn switch_to_game_mode() -> Result<()> {
 
     set_config_symlink(&game_mode_config, &config_path)?;
 
+    // Blank the VT and hide its cursor so the handoff gap (greeter compositor
+    // teardown -> gamescope first frame) shows black instead of stale console
+    // text. Best-effort: the greeter user owns the session tty.
+    let config_vt = format!("/dev/tty{}", config.terminal.vt);
+    if let Ok(mut tty) = fs::OpenOptions::new().write(true).open(&config_vt) {
+        use std::io::Write;
+        let _ = tty.write_all(b"\x1b[2J\x1b[H\x1b[?25l");
+    }
+
     // greetd only honours [initial_session] on its first run since boot,
     // tracked by the presence of this runfile — remove it or the restart
     // below lands on the greeter instead of the game session. The exact

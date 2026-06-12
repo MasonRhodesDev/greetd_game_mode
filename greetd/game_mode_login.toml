@@ -1,3 +1,9 @@
+[general]
+# Don't source /etc/profile + ~/.profile for the game session: the wrapper
+# uses absolute paths, and skipping shell init (version-manager shims etc.)
+# gets gamescope on screen faster.
+source_profile = false
+
 [terminal]
 vt = {{vt}}
 
