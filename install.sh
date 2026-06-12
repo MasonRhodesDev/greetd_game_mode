@@ -190,17 +190,16 @@ getent passwd access-gate >/dev/null || \
     sudo useradd --system --no-create-home --shell /usr/sbin/nologin access-gate
 sudo install -d -o access-gate -g access-gate -m700 /var/lib/access-gate
 
-# deploy verifier to /opt (system service must not depend on a user home)
-sudo install -d -m755 /opt/game-mode/approval
-sudo cp approval/app.py approval/requirements.txt /opt/game-mode/approval/
-[ -d /opt/game-mode/approval/venv ] || sudo python3 -m venv /opt/game-mode/approval/venv
-sudo /opt/game-mode/approval/venv/bin/pip -q install -r /opt/game-mode/approval/requirements.txt
+# verifier binary (Rust, built by the workspace build above)
+sudo install -m755 target/release/access-gate-verifier /usr/local/bin/access-gate-verifier
+# migrate away the old python deployment if present
+sudo rm -rf /opt/game-mode/approval
 
-# config (RP ID from tailscale) + helper + unit
+# config (RP ID from tailscale) + unit
 FQDN=$(tailscale status --json | python3 -c 'import sys,json;print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')
 if [ ! -f /etc/game-mode/approval.env ]; then
     sudo install -d -m755 /etc/game-mode
-    printf 'AG_RP_ID=%s\nAG_ORIGIN=https://%s\nAG_DATA_DIR=/var/lib/access-gate\nAG_VERIFIER_CTRL=http://127.0.0.1:8731\nAG_APPROVE_BASE=https://%s/approve\nAG_TIMEOUT=90\nAG_VAPID_SUB=%s\n' \
+    printf 'AG_RP_ID=%s\nAG_ORIGIN=https://%s\nAG_DATA_DIR=/var/lib/access-gate\nAG_CTRL_SOCKET=/run/access-gate/ctrl.sock\nAG_APPROVE_BASE=https://%s/approve\nAG_TIMEOUT=90\nAG_VAPID_SUB=%s\n' \
         "$FQDN" "$FQDN" "$FQDN" "${AG_VAPID_SUB:-access-gate@$FQDN}" | sudo tee /etc/game-mode/approval.env >/dev/null
     sudo chmod 644 /etc/game-mode/approval.env
 fi

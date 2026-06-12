@@ -5,12 +5,18 @@ Wants=network-online.target
 
 [Service]
 User=access-gate
-Group=access-gate
+# Primary group = greeter so the control socket (0660) is connectable by the
+# game-mode daemon and nobody else.
+Group=greeter
 EnvironmentFile=/etc/game-mode/approval.env
-ExecStart=/opt/game-mode/approval/venv/bin/python /opt/game-mode/approval/app.py
+ExecStart=/usr/local/bin/access-gate-verifier
 Restart=on-failure
 RestartSec=3
-# hardening (it only needs localhost sockets + its data dir)
+# /run/access-gate for the control socket, owned access-gate:greeter
+RuntimeDirectory=access-gate
+RuntimeDirectoryMode=0750
+# hardening (it only needs the web loopback port, the control socket, and its
+# data dir)
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes

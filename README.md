@@ -11,7 +11,7 @@ Three cooperating pieces:
 
 1. **game-mode daemon** (Rust, `src/`) — runs as the `greeter` user alongside
    greetd, listens for the gamepad Guide button while the greeter is on screen.
-2. **Approval verifier** (`approval/app.py`) — a WebAuthn relying party +
+2. **Approval verifier** (Rust, `verifier/`) — a WebAuthn relying party +
    Web Push sender. Entering game mode requires a passkey approval from your
    phone; the approval is one notification tap + one biometric.
 3. **greetd config switching** — the daemon symlinks
@@ -23,12 +23,12 @@ Three cooperating pieces:
 ```
 Guide button at greeter
   └─ game-mode daemon ── fail-closed gate, built into the binary (src/approval.rs)
-       ├─ POST /request to verifier (127.0.0.1:8731, localhost-only)
-       │    └─ verifier Web-Pushes the phone ("Enter game mode?")
-       ├─ on-screen greeter banner: "Approval sent to your phone…"
-       └─ polls /result/<id> until approved/denied/timeout (90s)
+       └─ one blocking request on /run/access-gate/ctrl.sock (unix socket)
+            ├─ verifier Web-Pushes the phone ("Enter game mode?")
+            ├─ on-screen greeter banner: "Approval sent to your phone…"
+            └─ verifier answers when the phone decides (no polling)
 phone: tap notification ── approve page auto-fires the passkey prompt
-  └─ fingerprint ── WebAuthn assertion verified against the enrolled key
+  └─ fingerprint ── WebAuthn assertion verified (user verification required)
 approved ── blank VT ── rm /run/greetd.run ── symlink game config ── restart greetd
   └─ greetd [initial_session]: gamescope + Steam Big Picture (bwrap home mask)
 ```
@@ -40,9 +40,10 @@ Security model:
 - **Trust is the single enrolled passkey** (phone secure element + biometric).
   The push notification carries no authority — anyone who sees it can only
   open the approve page, which requires the passkey assertion.
-- The verifier's control plane (`/request`, `/result`) only answers on
-  localhost; the tailnet-exposed web plane can answer requests but never
-  create or read them.
+- The verifier's control plane is a unix socket owned `access-gate:greeter`
+  mode 0660 — only the daemon can create requests (a localhost TCP port
+  would be reachable by any local process). The tailnet-exposed web plane
+  can answer requests but never create or read them.
 - The WebAuthn origin is the machine's **Tailscale FQDN** served over HTTPS
   via `tailscale serve` (WebAuthn requires a real TLS origin; MagicDNS
   domains are on the Public Suffix List, so the FQDN is a valid RP ID).
@@ -56,8 +57,9 @@ Components on disk after install:
 |---|---|
 | `/usr/local/bin/game-mode` | daemon binary (incl. the approval client + greeter banners) |
 | `/usr/local/bin/steamos-session-select` | Steam "Switch to Desktop" hook (logs to `/tmp/steamos-session-select.log`) |
-| `/opt/game-mode/approval/` | verifier (Flask + py_webauthn + pywebpush, own venv) |
-| `/etc/game-mode/approval.env` | verifier + helper config (RP ID, ports, timeout) |
+| `/usr/local/bin/access-gate-verifier` | verifier (Rust: webauthn-rs + web-push, `verifier/`) |
+| `/run/access-gate/ctrl.sock` | control socket (created by the verifier at start) |
+| `/etc/game-mode/approval.env` | verifier + daemon config (RP ID, socket, timeout) |
 | `/var/lib/access-gate/` | enrolled passkey, push subscription, VAPID key (system user `access-gate`) |
 | `/etc/greetd/` | greeter + game session configs, wrapper scripts |
 | `/etc/sudoers.d/greeter-greetd` | exact-match grants: restart greetd, fgconsole, rm the greetd runfile |
