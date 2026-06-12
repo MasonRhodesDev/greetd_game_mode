@@ -1,0 +1,35 @@
+#!/bin/bash
+# game-mode entry approval. Run by the game-mode daemon (as greeter) when the
+# guide button is pressed at the greeter. Creates a request in the verifier
+# (which Web-Pushes the phone: tap -> approve page auto-fires passkey ->
+# biometric), then polls for the decision.
+#
+# Exit: 0 = approved (enter game mode), non-zero = denied/timeout/unreachable
+#       (stay at greeter; fail-closed).
+set -u
+ENV_FILE="${AG_ENV_FILE:-/etc/game-mode/approval.env}"
+# shellcheck disable=SC1090
+[ -r "$ENV_FILE" ] && . "$ENV_FILE"
+: "${AG_VERIFIER_CTRL:?}" "${AG_APPROVE_BASE:?}" "${AG_TIMEOUT:=90}"
+
+# 1. create request (localhost control plane). curl failure -> verifier down.
+RESP=$(curl -sS --max-time 5 -X POST "$AG_VERIFIER_CTRL/request" \
+        -H 'content-type: application/json' \
+        -d '{"exe":"game-mode","path":"switch this PC into Steam game mode","group":"login","title":"Enter game mode?"}' 2>/dev/null) || exit 2
+ID=$(printf '%s' "$RESP" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id",""))' 2>/dev/null)
+[ -n "$ID" ] || exit 2
+echo "game-mode-approve: request $ID -> ${AG_APPROVE_BASE}/${ID}" >&2
+
+# 2. poll for the decision (the verifier already pushed the phone)
+deadline=$(( $(date +%s) + AG_TIMEOUT ))
+while [ "$(date +%s)" -lt "$deadline" ]; do
+    R=$(curl -sS --max-time 5 "$AG_VERIFIER_CTRL/result/$ID" 2>/dev/null) || exit 2
+    case "$(printf '%s' "$R" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("status",""))' 2>/dev/null)" in
+        approved) echo "game-mode-approve: APPROVED" >&2; exit 0 ;;
+        denied)   echo "game-mode-approve: DENIED"   >&2; exit 1 ;;
+        expired|unknown) exit 1 ;;
+    esac
+    sleep 1
+done
+echo "game-mode-approve: TIMEOUT" >&2
+exit 1

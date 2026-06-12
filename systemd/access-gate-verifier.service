@@ -1,0 +1,21 @@
+[Unit]
+Description=access-gate WebAuthn verifier (game-mode entry approval)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+User=access-gate
+Group=access-gate
+EnvironmentFile=/etc/game-mode/approval.env
+ExecStart=/opt/game-mode/approval/venv/bin/python /opt/game-mode/approval/app.py
+Restart=on-failure
+RestartSec=3
+# hardening (it only needs localhost sockets + its data dir)
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/access-gate
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

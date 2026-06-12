@@ -102,6 +102,64 @@ sudo systemctl enable game-mode.service
 echo "Restarting greetd service..."
 sudo systemctl restart greetd.service
 
+# ---------------------------------------------------------------------------
+# Passkey approval for game-mode entry (WebAuthn verifier + Web Push).
+# The game-mode daemon gates switch_to_game_mode() on a phone passkey approval.
+# ---------------------------------------------------------------------------
+echo "Setting up game-mode passkey approval..."
+for p in qrencode; do command -v "$p" >/dev/null || sudo pacman -S --noconfirm "$p"; done
+
+# system user + data dir for the verifier (holds the enrolled passkey)
+getent passwd access-gate >/dev/null || \
+    sudo useradd --system --no-create-home --shell /usr/sbin/nologin access-gate
+sudo install -d -o access-gate -g access-gate -m700 /var/lib/access-gate
+
+# deploy verifier to /opt (system service must not depend on a user home)
+sudo install -d -m755 /opt/game-mode/approval
+sudo cp approval/app.py approval/requirements.txt /opt/game-mode/approval/
+[ -d /opt/game-mode/approval/venv ] || sudo python3 -m venv /opt/game-mode/approval/venv
+sudo /opt/game-mode/approval/venv/bin/pip -q install -r /opt/game-mode/approval/requirements.txt
+
+# config (RP ID from tailscale) + helper + unit
+FQDN=$(tailscale status --json | python3 -c 'import sys,json;print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')
+if [ ! -f /etc/game-mode/approval.env ]; then
+    sudo install -d -m755 /etc/game-mode
+    printf 'AG_RP_ID=%s\nAG_ORIGIN=https://%s\nAG_DATA_DIR=/var/lib/access-gate\nAG_VERIFIER_CTRL=http://127.0.0.1:8731\nAG_APPROVE_BASE=https://%s/approve\nAG_TIMEOUT=90\nAG_VAPID_SUB=%s\n' \
+        "$FQDN" "$FQDN" "$FQDN" "${AG_VAPID_SUB:-access-gate@$FQDN}" | sudo tee /etc/game-mode/approval.env >/dev/null
+    sudo chmod 644 /etc/game-mode/approval.env
+fi
+sudo install -m755 bin/game-mode-approve /usr/local/bin/game-mode-approve
+sudo install -m644 systemd/access-gate-verifier.service /etc/systemd/system/access-gate-verifier.service
+sudo systemctl daemon-reload
+sudo systemctl enable access-gate-verifier.service
+sudo systemctl restart access-gate-verifier.service
+
+# HTTPS for the verifier on the tailnet (WebAuthn needs a real TLS origin)
+sudo tailscale serve --bg --https=443 http://127.0.0.1:8730 || \
+    echo "  WARN: run 'sudo tailscale serve --bg --https=443 http://127.0.0.1:8730' manually"
+
+# one-time phone setup via QR: passkey enrollment, then Web Push subscription
+# (both pages are flag/state-gated; skipped when already done)
+if ! curl -s 127.0.0.1:8730/ | grep -q '"enrolled": *true'; then
+    sudo -u access-gate touch /var/lib/access-gate/enroll-open
+    echo; echo "== Scan with phone CAMERA to enroll the game-mode passkey =="
+    qrencode -t ANSIUTF8 "https://$FQDN/enroll"
+    echo "Waiting for passkey enrollment..."
+    for _ in $(seq 1 60); do
+        curl -s 127.0.0.1:8730/ | grep -q '"enrolled": *true' && { echo "Enrolled."; break; }
+        sleep 3
+    done
+fi
+if ! curl -s 127.0.0.1:8730/ | grep -q '"push_subscribed": *true'; then
+    echo; echo "== Scan with phone CAMERA to enable approval notifications =="
+    qrencode -t ANSIUTF8 "https://$FQDN/setup"
+    echo "Waiting for push subscription..."
+    for _ in $(seq 1 60); do
+        curl -s 127.0.0.1:8730/ | grep -q '"push_subscribed": *true' && { echo "Subscribed."; break; }
+        sleep 3
+    done
+fi
+
 # Enable Decky Loader so its plugins (Discord status, etc.) inject into Big
 # Picture. Decky itself must already be installed under the game user's
 # ~/homebrew (https://decky.xyz); this only enables its service if present.

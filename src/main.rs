@@ -1,3 +1,4 @@
+mod approval;
 mod config;
 mod game_mode_switch;
 mod paths;
@@ -212,7 +213,12 @@ fn run_game_mode() -> Result<()> {
                 }
                 gilrs::EventType::ButtonReleased(Button::Mode, _) => {
                     menu_pressed.store(false, Ordering::SeqCst);
-                    game_mode_switch::switch_to_game_mode()?;
+                    // Gate entry on a phone passkey approval (fail-closed).
+                    if approval::require_approval() {
+                        game_mode_switch::switch_to_game_mode()?;
+                    } else {
+                        info!("game-mode entry not approved; staying at greeter");
+                    }
                 }
                 _ => {}
             }
