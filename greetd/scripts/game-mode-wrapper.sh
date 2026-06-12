@@ -39,7 +39,7 @@ fi
 # ----------------------------------------------------------------------------
 if [ -e /games/.game-mode-no-mask ] || ! command -v bwrap >/dev/null 2>&1; then
     echo "game-mode-wrapper: MASK DISABLED (flag file or bwrap missing)" >&2
-    exec steam -gamepadui
+    exec steam -gamepadui -steamos3
 fi
 
 # Only bind paths that exist (bwrap errors out on missing sources).
@@ -78,4 +78,4 @@ maybe_bind --bind "$HOME/.config/r2modmanPlus-local"
 MASK+=(--remount-ro "$HOME")
 
 echo "game-mode-wrapper: launching Steam inside bwrap home mask" >&2
-exec bwrap "${MASK[@]}" -- steam -gamepadui
+exec bwrap "${MASK[@]}" -- steam -gamepadui -steamos3
