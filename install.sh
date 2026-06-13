@@ -153,6 +153,11 @@ sudo install -m755 greetd/scripts/game-mode-discord /usr/local/bin/game-mode-dis
 # discover-overlay launcher with runtime fixes (the wrapper autostarts this)
 sudo install -m755 greetd/scripts/game-mode-overlay /usr/local/bin/game-mode-overlay
 
+# Black-screen prevention: state-aware Steam idle config + in-session watchdog
+# (both invoked by the wrapper at session start)
+sudo install -m755 target/release/game-mode-steam-config /usr/local/bin/game-mode-steam-config
+sudo install -m755 target/release/game-mode-watchdog /usr/local/bin/game-mode-watchdog
+
 # Add the "Discord" non-Steam shortcut to shortcuts.vdf (idempotent; refuses
 # while Steam is running because Steam rewrites the file on exit)
 sudo install -m755 target/release/game-mode-steam-shortcut /usr/local/bin/game-mode-steam-shortcut

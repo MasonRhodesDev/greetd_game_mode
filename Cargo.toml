@@ -20,6 +20,14 @@ path = "src/bin/generate_constants.rs"
 name = "game-mode-steam-shortcut"
 path = "src/bin/steam_shortcut.rs"
 
+[[bin]]
+name = "game-mode-steam-config"
+path = "src/bin/steam_config.rs"
+
+[[bin]]
+name = "game-mode-watchdog"
+path = "src/bin/watchdog.rs"
+
 [dependencies]
 anyhow = "1.0"
 dialoguer = "0.11"

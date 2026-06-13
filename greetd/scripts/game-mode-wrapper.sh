@@ -16,6 +16,18 @@
 # compatibility ensure ENV has 'GDK_BACKEND=x11'".
 # ----------------------------------------------------------------------------
 start_session_apps() {
+    # State-aware Steam idle config + webhelper CEF flag, BEFORE Steam starts:
+    # zeroes Steam's idle-suspend when suspend is masked/inhibited (prevents
+    # the black-screen suspend wedge), restores normal console-style suspend
+    # when it's available again. Best-effort, logged.
+    if command -v game-mode-steam-config >/dev/null 2>&1; then
+        game-mode-steam-config apply >> /tmp/game-mode-watchdog.log 2>&1 || true
+    fi
+    # In-session watchdog: CEF crash-burst recovery (webhelper restart + input
+    # re-sync), suspend-wedge detection, periodic flag re-assertion.
+    if command -v game-mode-watchdog >/dev/null 2>&1; then
+        game-mode-watchdog &
+    fi
     # Voice overlay (best-effort; never block the Steam session). It idles
     # until a Discord client appears — Discord itself is launched on demand
     # from Big Picture via the "Discord" non-Steam shortcut (game-mode-discord),

@@ -186,7 +186,16 @@ First-use notes:
 | `/etc/greetd/logs/game-mode.log` | daemon (RUST_LOG=game_mode=debug in the unit) |
 | `journalctl -u access-gate-verifier` | verifier: requests, push sends (logs FCM status), WebAuthn verifies |
 | `/tmp/steamos-session-select.log` | Switch to Desktop invocations + `steam -shutdown` exit |
+| `/tmp/game-mode-watchdog.log` | idle-config decisions + black-screen watchdog recoveries |
 | `journalctl -u greetd` | session starts/ends |
+
+**Black-screen prevention** (see [`docs/SUSPEND.md`](docs/SUSPEND.md)):
+`-steamos3` gives Steam console-style idle suspend; if system suspend is
+masked/inhibited the attempt wedges BP black. `game-mode-steam-config` (run by
+the wrapper before Steam) zeroes Steam's idle-suspend exactly when suspend is
+unavailable and restores it when it isn't, and `game-mode-watchdog` recovers
+CEF GPU-crash black screens in-session (webhelper restart + controller
+re-sync) without touching running games.
 
 Known gotchas:
 
