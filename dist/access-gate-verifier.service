@@ -9,7 +9,7 @@ User=access-gate
 # game-mode daemon and nobody else.
 Group=greeter
 EnvironmentFile=/etc/game-mode/approval.env
-ExecStart=/usr/local/bin/access-gate-verifier
+ExecStart=/usr/bin/access-gate-verifier
 Restart=on-failure
 RestartSec=3
 # /run/access-gate for the control socket, owned access-gate:greeter

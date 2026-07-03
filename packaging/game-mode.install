@@ -1,0 +1,24 @@
+# The package only installs files. Host provisioning (games user, greetd
+# config swap, sudoers grant, tailscale approval gate) is a separate explicit
+# step because it rewrites /etc/greetd and creates a login user.
+
+post_install() {
+    # pacman's systemd hooks already run systemd-sysusers/systemd-tmpfiles
+    # for the shipped snippets; this is just the operator hand-off.
+    cat <<'EOF'
+game-mode is installed but not provisioned. To set up this host
+(games user, greetd greeter config, sudoers grant, approval gate):
+
+    sudo game-mode setup
+
+then enable at your leisure:  sudo systemctl enable --now game-mode
+EOF
+}
+
+post_upgrade() {
+    cat <<'EOF'
+game-mode upgraded. If the greetd templates changed, re-render them with:
+
+    sudo game-mode setup
+EOF
+}

@@ -1,0 +1,5 @@
+# Static system user for the access-gate WebAuthn verifier (holds the
+# enrolled passkey under /var/lib/access-gate). The interactive games user is
+# NOT created here — it is a real login account chosen at `game-mode setup`
+# time.
+u access-gate - "game-mode access gate verifier" - -

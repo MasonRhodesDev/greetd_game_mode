@@ -1,0 +1,77 @@
+# Maintainer: Mason Rhodes <mrhodesdev@gmail.com>
+#
+# Arch package for game-mode (repo: greetd_game_mode). Same payload as the
+# Fedora RPM (packaging/game-mode.spec); all paths are identical across both
+# distros. The package installs files only — host provisioning (games user,
+# greetd config swap, sudoers, tailscale) is `sudo game-mode setup`.
+
+pkgname=game-mode
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Console-style greetd game mode: gamepad-triggered Steam Big Picture session with passkey approval"
+arch=('x86_64')
+url="https://github.com/MasonRhodesDev/greetd_game_mode"
+license=('MIT')
+install="$pkgname.install"
+depends=('greetd' 'gamescope')
+makedepends=('cargo' 'systemd' 'openssl')
+optdepends=(
+  'discord: in-session voice chat (launched from Big Picture)'
+  'discover-overlay: Discord voice overlay in the game session'
+  'tailscale: HTTPS origin for the WebAuthn approval verifier'
+  'steam: the game session itself (requires the [multilib] repo)'
+)
+source=("$pkgname-$pkgver.tar.gz::https://github.com/MasonRhodesDev/greetd_game_mode/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP') # pin on release: updpkgsums
+
+prepare() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release --workspace
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --frozen --release --workspace
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+
+  # Rust binaries (game_mode workspace + verifier)
+  install -Dm755 target/release/game-mode "$pkgdir/usr/bin/game-mode"
+  install -Dm755 target/release/game-mode-steam-config "$pkgdir/usr/bin/game-mode-steam-config"
+  install -Dm755 target/release/game-mode-watchdog "$pkgdir/usr/bin/game-mode-watchdog"
+  install -Dm755 target/release/game-mode-steam-shortcut "$pkgdir/usr/bin/game-mode-steam-shortcut"
+  install -Dm755 target/release/access-gate-verifier "$pkgdir/usr/bin/access-gate-verifier"
+
+  # Session helper scripts (referenced by the greetd session configs)
+  install -Dm755 greetd/scripts/game-mode-wrapper.sh "$pkgdir/usr/bin/game-mode-wrapper"
+  install -Dm755 greetd/scripts/game-mode-discord "$pkgdir/usr/bin/game-mode-discord"
+  install -Dm755 greetd/scripts/game-mode-overlay "$pkgdir/usr/bin/game-mode-overlay"
+  install -Dm755 greetd/scripts/steamos-session-select "$pkgdir/usr/bin/steamos-session-select"
+
+  # systemd units + access-gate system user/state dir
+  install -Dm644 dist/game-mode.service "$pkgdir/usr/lib/systemd/system/game-mode.service"
+  install -Dm644 dist/access-gate-verifier.service "$pkgdir/usr/lib/systemd/system/access-gate-verifier.service"
+  install -Dm644 dist/game-mode.sysusers "$pkgdir/usr/lib/sysusers.d/game-mode.conf"
+  install -Dm644 dist/game-mode.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/game-mode.conf"
+
+  # greetd payload: templates rendered into /etc/greetd by `game-mode setup`
+  for f in config_default.toml game_mode_login.toml hypr.conf regreet.toml environments bg.png; do
+    install -Dm644 "greetd/$f" "$pkgdir/usr/share/game-mode/greetd/$f"
+  done
+  install -Dm644 dist/sudoers-greeter-greetd "$pkgdir/usr/share/game-mode/sudoers/greeter-greetd"
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 docs/SUSPEND.md "$pkgdir/usr/share/doc/$pkgname/SUSPEND.md"
+}
