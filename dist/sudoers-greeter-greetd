@@ -1,0 +1,5 @@
+# Template rendered by `game-mode setup` into /etc/sudoers.d/greeter-greetd
+# ({{greeter_user}} -> the configured greeter user, visudo -c gated).
+# The game-mode daemon runs as the greeter and needs exactly these three
+# commands to flip greetd between desktop and game mode.
+{{greeter_user}} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart greetd.service, /usr/bin/fgconsole, /usr/bin/rm -f /run/greetd.run

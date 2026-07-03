@@ -49,10 +49,18 @@ fn apply() -> ExitCode {
         }
     };
 
-    let suspend = if suspend_available() { SUSPEND_SECONDS_NORMAL } else { "0" };
+    let suspend = if suspend_available() {
+        SUSPEND_SECONDS_NORMAL
+    } else {
+        "0"
+    };
     println!(
         "suspend {}: IdleSuspendACSeconds={suspend}, IdleBacklightDimACSeconds={DIM_SECONDS}",
-        if suspend == "0" { "UNAVAILABLE (masked/inhibited)" } else { "available" }
+        if suspend == "0" {
+            "UNAVAILABLE (masked/inhibited)"
+        } else {
+            "available"
+        }
     );
 
     let mut failures = 0;
@@ -96,8 +104,9 @@ fn apply() -> ExitCode {
 fn steam_running() -> bool {
     fs::read_dir("/proc")
         .map(|d| {
-            d.filter_map(|e| e.ok())
-                .any(|e| fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == "steam"))
+            d.filter_map(|e| e.ok()).any(|e| {
+                fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == "steam")
+            })
         })
         .unwrap_or(false)
 }
@@ -221,8 +230,8 @@ pub fn patch_webhelper_wrap(text: &str) -> Option<String> {
 
 fn patch_idle_keys_file(path: &Path, dim: &str, suspend: &str) -> Result<bool, String> {
     let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let new =
-        patch_idle_keys(&text, dim, suspend).ok_or_else(|| "no \"System\" block found".to_string())?;
+    let new = patch_idle_keys(&text, dim, suspend)
+        .ok_or_else(|| "no \"System\" block found".to_string())?;
     if new == text {
         return Ok(false);
     }
@@ -293,7 +302,8 @@ mod tests {
 
     #[test]
     fn inserts_missing_keys() {
-        let minimal = "\"Root\"\n{\n\t\"System\"\n\t{\n\t\t\"DisplayBrightness\"\t\t\"0.5\"\n\t}\n}\n";
+        let minimal =
+            "\"Root\"\n{\n\t\"System\"\n\t{\n\t\t\"DisplayBrightness\"\t\t\"0.5\"\n\t}\n}\n";
         let out = patch_idle_keys(minimal, "900", "0").unwrap();
         assert!(out.contains("\"IdleSuspendACSeconds\"\t\t\"0\""));
         assert!(out.contains("\"IdleBacklightDimACSeconds\"\t\t\"900\""));
@@ -310,7 +320,10 @@ mod tests {
         // A same-named key OUTSIDE System must not be modified.
         let vdf = "\"Root\"\n{\n\t\"Other\"\n\t{\n\t\t\"IdleSuspendACSeconds\"\t\t\"1234\"\n\t}\n\t\"System\"\n\t{\n\t\t\"IdleSuspendACSeconds\"\t\t\"3600\"\n\t}\n}\n";
         let out = patch_idle_keys(vdf, "900", "0").unwrap();
-        assert!(out.contains("\"Other\"\n\t{\n\t\t\"IdleSuspendACSeconds\"\t\t\"1234\""), "{out}");
+        assert!(
+            out.contains("\"Other\"\n\t{\n\t\t\"IdleSuspendACSeconds\"\t\t\"1234\""),
+            "{out}"
+        );
     }
 
     const WRAP: &str = "#!/bin/bash\nexport LD_LIBRARY_PATH=.${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\necho \"<6>exec ./steamwebhelper $*\"\necho \"<remaining-lines-assume-level=7>\"\nexec ./steamwebhelper \"$@\"\n";

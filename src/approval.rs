@@ -40,7 +40,11 @@ fn load_cfg() -> Cfg {
             }
         }
     }
-    let get = |key: &str| std::env::var(key).ok().or_else(|| file_vars.get(key).cloned());
+    let get = |key: &str| {
+        std::env::var(key)
+            .ok()
+            .or_else(|| file_vars.get(key).cloned())
+    };
     Cfg {
         socket: get("AG_CTRL_SOCKET").unwrap_or_else(|| DEFAULT_SOCKET.into()),
         timeout_secs: get("AG_TIMEOUT").and_then(|v| v.parse().ok()).unwrap_or(90),
@@ -84,7 +88,10 @@ pub fn require_approval() -> bool {
     let cfg = load_cfg();
 
     let Ok(mut stream) = UnixStream::connect(&cfg.socket) else {
-        warn!("verifier socket {} unreachable; refusing game-mode entry", cfg.socket);
+        warn!(
+            "verifier socket {} unreachable; refusing game-mode entry",
+            cfg.socket
+        );
         notify(3, 8000, "Game mode: approval service unreachable");
         return false;
     };
@@ -144,7 +151,11 @@ pub fn require_approval() -> bool {
         }
         "timeout" | "expired" | "unknown" => {
             warn!("approval timed out");
-            notify(0, 6000, "Approval timed out — press the Guide button to retry");
+            notify(
+                0,
+                6000,
+                "Approval timed out — press the Guide button to retry",
+            );
             false
         }
         other => {

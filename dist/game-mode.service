@@ -9,7 +9,7 @@ Type=simple
 WorkingDirectory=/etc/greetd
 # Verifier control-plane settings for the built-in approval gate
 EnvironmentFile=-/etc/game-mode/approval.env
-ExecStart=/usr/local/bin/game-mode
+ExecStart=/usr/bin/game-mode
 Restart=on-failure
 RestartSec=5
 StandardOutput=append:/etc/greetd/logs/game-mode.log

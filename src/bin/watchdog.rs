@@ -5,10 +5,10 @@
 //!
 //! 1. CEF GPU crash-burst ("GPU process exited unexpectedly" in cef_log.txt,
 //!    >=3 within 45s, debounced 300s) → restart steamwebhelper (Steam respawns
-//!    its UI; games untouched), then re-sync Steam Input: bounce the
-//!    controller's Bluetooth and force input routing to the BP UI (appid 769).
-//!    The re-sync ladder exists because a webhelper restart visibly desyncs
-//!    Steam Input focus routing.
+//!    > its UI; games untouched), then re-sync Steam Input: bounce the
+//!    > controller's Bluetooth and force input routing to the BP UI (appid 769).
+//!    > The re-sync ladder exists because a webhelper restart visibly desyncs
+//!    > Steam Input focus routing.
 //! 2. Suspend-wedge ("Closing timeline on system suspend" in console-linux.txt
 //!    while no actual suspend happened — e.g. suspend.target masked): in-place
 //!    recovery is IMPOSSIBLE (Steam's input pump parks in pre-suspend state and
@@ -25,7 +25,7 @@ use std::collections::VecDeque;
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, Instant, SystemTime};
 
@@ -58,9 +58,18 @@ pub struct CrashWindow {
     last_restart: Option<Instant>,
 }
 
+impl Default for CrashWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CrashWindow {
     pub fn new() -> Self {
-        CrashWindow { crashes: VecDeque::new(), last_restart: None }
+        CrashWindow {
+            crashes: VecDeque::new(),
+            last_restart: None,
+        }
     }
 
     /// Record a crash at `now`; returns true if a restart should fire.
@@ -92,9 +101,17 @@ pub struct Escalation {
     restarts: VecDeque<Instant>,
 }
 
+impl Default for Escalation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Escalation {
     pub fn new() -> Self {
-        Escalation { restarts: VecDeque::new() }
+        Escalation {
+            restarts: VecDeque::new(),
+        }
     }
     /// Record a webhelper recovery; true → escalate to session end.
     pub fn on_recovery(&mut self, now: Instant) -> bool {
@@ -125,11 +142,18 @@ impl LogTail {
             Ok(m) => (m.ino(), m.len()),
             Err(_) => (0, 0),
         };
-        LogTail { path, inode, offset, carry: String::new() }
+        LogTail {
+            path,
+            inode,
+            offset,
+            carry: String::new(),
+        }
     }
 
     pub fn read_new_lines(&mut self) -> Vec<String> {
-        let Ok(meta) = fs::metadata(&self.path) else { return Vec::new() };
+        let Ok(meta) = fs::metadata(&self.path) else {
+            return Vec::new();
+        };
         // rotation/truncation: new inode or shrunk file → start from 0
         if meta.ino() != self.inode || meta.len() < self.offset {
             self.inode = meta.ino();
@@ -139,7 +163,9 @@ impl LogTail {
         if meta.len() == self.offset {
             return Vec::new();
         }
-        let Ok(mut f) = fs::File::open(&self.path) else { return Vec::new() };
+        let Ok(mut f) = fs::File::open(&self.path) else {
+            return Vec::new();
+        };
         if f.seek(SeekFrom::Start(self.offset)).is_err() {
             return Vec::new();
         }
@@ -197,7 +223,11 @@ impl Watchdog {
     fn log(&self, msg: &str) {
         let ts = humantime(SystemTime::now());
         let line = format!("[{ts}] {msg}\n");
-        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&self.log_file) {
+        if let Ok(mut f) = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.log_file)
+        {
             let _ = f.write_all(line.as_bytes());
         }
     }
@@ -253,20 +283,28 @@ impl Watchdog {
     /// re-route (the empirically-derived ladder).
     fn recover_webhelper(&self) {
         self.log("RECOVERY: restarting steamwebhelper (games keep running)");
-        let _ = Command::new("pkill").args(["-x", "steamwebhelper"]).status();
+        let _ = Command::new("pkill")
+            .args(["-x", "steamwebhelper"])
+            .status();
         std::thread::sleep(Duration::from_secs(6));
 
         // Re-sync Steam Input: bounce the controller's BT connection…
         if let Some(mac) = connected_xbox_mac() {
             self.log(&format!("re-sync: bouncing controller bluetooth {mac}"));
-            let _ = Command::new("bluetoothctl").args(["disconnect", &mac]).status();
+            let _ = Command::new("bluetoothctl")
+                .args(["disconnect", &mac])
+                .status();
             std::thread::sleep(Duration::from_secs(2));
-            let _ = Command::new("bluetoothctl").args(["connect", &mac]).status();
+            let _ = Command::new("bluetoothctl")
+                .args(["connect", &mac])
+                .status();
             std::thread::sleep(Duration::from_secs(3));
         }
         // …and force input routing back to the BP UI.
         self.log("re-sync: forcing Steam Input routing to BP (appid 769)");
-        let _ = Command::new("steam").arg("steam://forceinputappid/769").spawn();
+        let _ = Command::new("steam")
+            .arg("steam://forceinputappid/769")
+            .spawn();
         self.log("recovery complete — BP should repaint with working input");
     }
 
@@ -282,8 +320,12 @@ impl Watchdog {
     }
 
     fn reassert_webhelper_flag(&self) {
-        let wrap = self.home.join(".local/share/Steam/ubuntu12_64/steamwebhelper_sniper_wrap.sh");
-        let Ok(text) = fs::read_to_string(&wrap) else { return };
+        let wrap = self
+            .home
+            .join(".local/share/Steam/ubuntu12_64/steamwebhelper_sniper_wrap.sh");
+        let Ok(text) = fs::read_to_string(&wrap) else {
+            return;
+        };
         if text.contains("--disable-gpu-process-crash-limit") {
             return;
         }
@@ -291,7 +333,10 @@ impl Watchdog {
         if !text.contains(marker) {
             return;
         }
-        let new = text.replace(marker, "exec ./steamwebhelper \"$@\" --disable-gpu-process-crash-limit");
+        let new = text.replace(
+            marker,
+            "exec ./steamwebhelper \"$@\" --disable-gpu-process-crash-limit",
+        );
         if fs::write(&wrap, new).is_ok() {
             self.log("re-applied --disable-gpu-process-crash-limit (Steam had reverted it)");
         }
@@ -325,7 +370,10 @@ fn proc_comm_exists(name: &str) -> bool {
 
 /// MAC of the connected Xbox controller, if any.
 fn connected_xbox_mac() -> Option<String> {
-    let out = Command::new("bluetoothctl").args(["devices", "Connected"]).output().ok()?;
+    let out = Command::new("bluetoothctl")
+        .args(["devices", "Connected"])
+        .output()
+        .ok()?;
     String::from_utf8_lossy(&out.stdout)
         .lines()
         .find(|l| l.to_lowercase().contains("xbox"))
@@ -333,7 +381,10 @@ fn connected_xbox_mac() -> Option<String> {
 }
 
 fn humantime(t: SystemTime) -> String {
-    let secs = t.duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let secs = t
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     format!("{secs}")
 }
 
@@ -351,7 +402,10 @@ mod tests {
         let base = t0();
         assert!(!w.on_crash(base));
         assert!(!w.on_crash(base + Duration::from_secs(10)));
-        assert!(w.on_crash(base + Duration::from_secs(20)), "3rd within 45s fires");
+        assert!(
+            w.on_crash(base + Duration::from_secs(20)),
+            "3rd within 45s fires"
+        );
     }
 
     #[test]
@@ -361,7 +415,10 @@ mod tests {
         assert!(!w.on_crash(base));
         assert!(!w.on_crash(base + Duration::from_secs(10)));
         // 3rd crash arrives after the first slid out of the 45s window
-        assert!(!w.on_crash(base + Duration::from_secs(50)), "only 2 in window");
+        assert!(
+            !w.on_crash(base + Duration::from_secs(50)),
+            "only 2 in window"
+        );
     }
 
     #[test]
@@ -374,11 +431,17 @@ mod tests {
         // a fresh burst right after must be debounced
         w.on_crash(base + Duration::from_secs(60));
         w.on_crash(base + Duration::from_secs(61));
-        assert!(!w.on_crash(base + Duration::from_secs(62)), "debounced (<300s)");
+        assert!(
+            !w.on_crash(base + Duration::from_secs(62)),
+            "debounced (<300s)"
+        );
         // …but fires again past the debounce
         w.on_crash(base + Duration::from_secs(400));
         w.on_crash(base + Duration::from_secs(401));
-        assert!(w.on_crash(base + Duration::from_secs(402)), "after debounce");
+        assert!(
+            w.on_crash(base + Duration::from_secs(402)),
+            "after debounce"
+        );
     }
 
     #[test]
@@ -386,11 +449,17 @@ mod tests {
         let mut e = Escalation::new();
         let base = t0();
         assert!(!e.on_recovery(base));
-        assert!(e.on_recovery(base + Duration::from_secs(300)), "2nd within 10min");
+        assert!(
+            e.on_recovery(base + Duration::from_secs(300)),
+            "2nd within 10min"
+        );
         // far-apart recoveries don't escalate
         let mut e = Escalation::new();
         assert!(!e.on_recovery(base));
-        assert!(!e.on_recovery(base + Duration::from_secs(700)), "outside window");
+        assert!(
+            !e.on_recovery(base + Duration::from_secs(700)),
+            "outside window"
+        );
     }
 
     #[test]
@@ -401,13 +470,19 @@ mod tests {
         fs::write(&path, "old line\n").unwrap();
 
         let mut tail = LogTail::new(path.clone());
-        assert!(tail.read_new_lines().is_empty(), "starts at EOF — no history replay");
+        assert!(
+            tail.read_new_lines().is_empty(),
+            "starts at EOF — no history replay"
+        );
 
         // append two lines + one partial
         let mut f = fs::OpenOptions::new().append(true).open(&path).unwrap();
         f.write_all(b"crash A\ncrash B\npart").unwrap();
         drop(f);
-        assert_eq!(tail.read_new_lines(), vec!["crash A".to_string(), "crash B".to_string()]);
+        assert_eq!(
+            tail.read_new_lines(),
+            vec!["crash A".to_string(), "crash B".to_string()]
+        );
 
         // complete the partial line
         let mut f = fs::OpenOptions::new().append(true).open(&path).unwrap();

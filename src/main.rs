@@ -2,30 +2,30 @@ mod approval;
 mod config;
 mod game_mode_switch;
 mod paths;
+mod setup;
 
+use crate::config::Config;
 use anyhow::Result;
 use gilrs::{Button, Event, Gilrs};
-use tracing::{info, error, debug, warn};
+use serde_json::Value;
 use std::{
-    env,
-    fs,
+    env, fs,
+    process::Command,
     sync::atomic::{AtomicBool, Ordering},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
-    process::Command,
 };
-use crate::config::Config;
-use serde_json::Value;
+use tracing::{debug, error, info, warn};
 
 fn setup_logging() -> Result<()> {
     let config = match crate::config::Config::load() {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Failed to load config: {}", e);
-            return Err(e.into());
+            return Err(e);
         }
     };
-    
+
     // Create a subscriber that always logs to stdout
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(env::var("RUST_LOG").unwrap_or_else(|_| {
@@ -58,8 +58,12 @@ fn setup_logging() -> Result<()> {
         // Try to set permissions, but don't fail if we can't
         let greeter_user = &config.permissions.greeter_user;
         if let Err(e) = std::process::Command::new("chown")
-            .args(["-R", &format!("{}:{}", greeter_user, greeter_user), log_dir.to_str().unwrap()])
-            .status() 
+            .args([
+                "-R",
+                &format!("{}:{}", greeter_user, greeter_user),
+                log_dir.to_str().unwrap(),
+            ])
+            .status()
         {
             eprintln!("Could not set log directory permissions: {}", e);
         }
@@ -94,13 +98,22 @@ fn list_tty_session_ids(tty: &str) -> Vec<String> {
 fn wait_for_new_session_on_tty(tty: &str, existing: &[String], timeout: Duration) {
     let start = Instant::now();
     while start.elapsed() < timeout {
-        if list_tty_session_ids(tty).iter().any(|id| !existing.contains(id)) {
-            debug!("New session present on {}; greetd has consumed its config", tty);
+        if list_tty_session_ids(tty)
+            .iter()
+            .any(|id| !existing.contains(id))
+        {
+            debug!(
+                "New session present on {}; greetd has consumed its config",
+                tty
+            );
             return;
         }
         std::thread::sleep(Duration::from_millis(250));
     }
-    warn!("No new session appeared on {} within {:?}; resetting config anyway", tty, timeout);
+    warn!(
+        "No new session appeared on {} within {:?}; resetting config anyway",
+        tty, timeout
+    );
 }
 
 /// State of a logind session ("active", "online", "closing", ...). Sessions in
@@ -120,7 +133,10 @@ fn is_user_logged_in_on_tty(tty: &str) -> Result<bool> {
         .arg("list-sessions")
         .output()?;
     let sessions: Vec<Value> = serde_json::from_slice(&output.stdout)?;
-    debug!("loginctl sessions: {}", serde_json::to_string_pretty(&sessions)?);
+    debug!(
+        "loginctl sessions: {}",
+        serde_json::to_string_pretty(&sessions)?
+    );
 
     // Check if there are any live non-greeter login sessions on the specified
     // TTY. Service-class sessions ("manager", "background", ...) and sessions
@@ -149,16 +165,21 @@ fn is_greeter_active() -> Result<bool> {
         .arg("list-sessions")
         .output()?;
     let sessions: Vec<Value> = serde_json::from_slice(&output.stdout)?;
-    debug!("loginctl sessions: {}", serde_json::to_string_pretty(&sessions)?);
-    
+    debug!(
+        "loginctl sessions: {}",
+        serde_json::to_string_pretty(&sessions)?
+    );
+
     // Check if greeter session exists and is on the correct TTY
     let result = sessions.iter().any(|session| {
         let user = session["user"].as_str().unwrap_or("");
         let tty = session["tty"].as_str().unwrap_or("");
         let is_greeter = user == "greeter";
         let has_tty = !tty.is_empty() && tty != "-";
-        debug!("Session user: {}, tty: {}, is_greeter: {}, has_tty: {}", 
-            user, tty, is_greeter, has_tty);
+        debug!(
+            "Session user: {}, tty: {}, is_greeter: {}, has_tty: {}",
+            user, tty, is_greeter, has_tty
+        );
         is_greeter && has_tty
     });
     debug!("Greeter active: {}", result);
@@ -194,7 +215,7 @@ fn run_game_mode() -> Result<()> {
         error!("Failed to initialize gamepad support: {}", e);
         anyhow::anyhow!("Failed to initialize gamepad support: {}", e)
     })?;
-    
+
     // Print connected gamepads
     info!("Connected gamepads:");
     for (id, gamepad) in gilrs.gamepads() {
@@ -224,14 +245,22 @@ fn run_game_mode() -> Result<()> {
     // Main event loop
     while running.load(Ordering::SeqCst) {
         // Process gamepad events
-        while let Some(Event { id, event, time }) = gilrs.next_event() {
+        while let Some(Event {
+            id: _,
+            event,
+            time: _,
+        }) = gilrs.next_event()
+        {
             debug!("Gamepad event: {:?}", event);
-            
+
             // Check if greetd TTY is active
             match get_active_tty() {
                 Ok(active_tty) => {
                     if active_tty != greetd_vt {
-                        debug!("Greetd VT {} is not active (active: {}), ignoring gamepad events", greetd_vt, active_tty);
+                        debug!(
+                            "Greetd VT {} is not active (active: {}), ignoring gamepad events",
+                            greetd_vt, active_tty
+                        );
                         std::thread::sleep(Duration::from_millis(1000));
                         continue;
                     }
@@ -283,16 +312,26 @@ fn run_game_mode() -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    // Host provisioning subcommand (`sudo game-mode setup`): plain
+    // stdout/stderr, no tracing/log-dir setup — it may run on a box where
+    // /etc/greetd doesn't have its final permissions yet.
+    if env::args().nth(1).as_deref() == Some("setup") {
+        return setup::run();
+    }
+
     // Initialize logging first thing
     if let Err(e) = setup_logging() {
         eprintln!("Failed to setup logging: {}", e);
-        return Err(e.into());
+        return Err(e);
     }
 
     // Exercise the approval gate without a gamepad (run as the greeter user).
     if env::args().any(|a| a == "--test-approval") {
         let ok = approval::require_approval();
-        println!("approval result: {}", if ok { "APPROVED" } else { "NOT APPROVED" });
+        println!(
+            "approval result: {}",
+            if ok { "APPROVED" } else { "NOT APPROVED" }
+        );
         std::process::exit(if ok { 0 } else { 1 });
     }
 
@@ -315,7 +354,7 @@ fn main() -> Result<()> {
         wait_for_new_session_on_tty(&tty, &existing, Duration::from_secs(15));
         if let Err(e) = game_mode_switch::switch_to_desktop_mode() {
             eprintln!("Failed to reset to desktop mode: {}", e);
-            return Err(e.into());
+            return Err(e);
         }
     } else {
         debug!("config.toml already points at the default config; no reset needed");
@@ -323,10 +362,9 @@ fn main() -> Result<()> {
 
     if let Err(e) = run_game_mode() {
         eprintln!("Failed to run game mode: {}", e);
-        return Err(e.into());
+        return Err(e);
     }
 
     info!("Game mode service exiting");
     Ok(())
 }
-

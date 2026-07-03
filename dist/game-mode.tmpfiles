@@ -1,0 +1,3 @@
+# Verifier data dir (enrolled passkey, push subscription). Private to the
+# access-gate user.
+d /var/lib/access-gate 0700 access-gate access-gate -

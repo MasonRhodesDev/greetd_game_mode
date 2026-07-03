@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use serde::Deserialize;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize, Default)]
 pub struct PathManager {
@@ -10,7 +10,12 @@ pub struct PathManager {
 }
 
 impl PathManager {
-    pub fn new(root: impl AsRef<Path>, greetd_dir: impl AsRef<Path>, config_file: &str, game_mode_config: &str) -> Self {
+    pub fn new(
+        root: impl AsRef<Path>,
+        greetd_dir: impl AsRef<Path>,
+        config_file: &str,
+        game_mode_config: &str,
+    ) -> Self {
         Self {
             root: root.as_ref().to_path_buf(),
             greetd_dir: greetd_dir.as_ref().to_path_buf(),
@@ -22,7 +27,10 @@ impl PathManager {
     pub fn get_greetd_dir(&self) -> PathBuf {
         // Path::join with an absolute path *replaces* the base, so strip the
         // leading "/" or the virtual root would be silently discarded.
-        let rel = self.greetd_dir.strip_prefix("/").unwrap_or(&self.greetd_dir);
+        let rel = self
+            .greetd_dir
+            .strip_prefix("/")
+            .unwrap_or(&self.greetd_dir);
         self.root.join(rel)
     }
 
@@ -45,17 +53,21 @@ mod tests {
 
     #[test]
     fn test_path_manager() {
-        let manager = PathManager::new(
-            "/",
-            "/etc/greetd",
-            "config.toml",
-            "game_mode_login.toml"
-        );
+        let manager = PathManager::new("/", "/etc/greetd", "config.toml", "game_mode_login.toml");
 
         assert_eq!(manager.get_greetd_dir(), PathBuf::from("/etc/greetd"));
-        assert_eq!(manager.get_config_path(), PathBuf::from("/etc/greetd/config.toml"));
-        assert_eq!(manager.get_default_config_path(), PathBuf::from("/etc/greetd/config_default.toml"));
-        assert_eq!(manager.get_game_mode_config_path(), PathBuf::from("/etc/greetd/game_mode_login.toml"));
+        assert_eq!(
+            manager.get_config_path(),
+            PathBuf::from("/etc/greetd/config.toml")
+        );
+        assert_eq!(
+            manager.get_default_config_path(),
+            PathBuf::from("/etc/greetd/config_default.toml")
+        );
+        assert_eq!(
+            manager.get_game_mode_config_path(),
+            PathBuf::from("/etc/greetd/game_mode_login.toml")
+        );
     }
 
     #[test]
@@ -64,12 +76,24 @@ mod tests {
             "/tmp/test",
             "/etc/greetd",
             "config.toml",
-            "game_mode_login.toml"
+            "game_mode_login.toml",
         );
 
-        assert_eq!(manager.get_greetd_dir(), PathBuf::from("/tmp/test/etc/greetd"));
-        assert_eq!(manager.get_config_path(), PathBuf::from("/tmp/test/etc/greetd/config.toml"));
-        assert_eq!(manager.get_default_config_path(), PathBuf::from("/tmp/test/etc/greetd/config_default.toml"));
-        assert_eq!(manager.get_game_mode_config_path(), PathBuf::from("/tmp/test/etc/greetd/game_mode_login.toml"));
+        assert_eq!(
+            manager.get_greetd_dir(),
+            PathBuf::from("/tmp/test/etc/greetd")
+        );
+        assert_eq!(
+            manager.get_config_path(),
+            PathBuf::from("/tmp/test/etc/greetd/config.toml")
+        );
+        assert_eq!(
+            manager.get_default_config_path(),
+            PathBuf::from("/tmp/test/etc/greetd/config_default.toml")
+        );
+        assert_eq!(
+            manager.get_game_mode_config_path(),
+            PathBuf::from("/tmp/test/etc/greetd/game_mode_login.toml")
+        );
     }
-} 
+}

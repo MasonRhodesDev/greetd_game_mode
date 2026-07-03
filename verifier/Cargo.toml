@@ -2,7 +2,10 @@
 name = "access-gate-verifier"
 version = "0.1.0"
 edition = "2021"
+authors = ["Mason Rhodes <mrhodesdev@gmail.com>"]
 description = "WebAuthn relying party + Web Push sender gating game-mode entry"
+license = "MIT"
+repository = "https://github.com/MasonRhodesDev/greetd_game_mode"
 
 [[bin]]
 name = "access-gate-verifier"

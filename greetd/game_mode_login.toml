@@ -20,11 +20,11 @@ vt = {{vt}}
 [initial_session]
 # Steam Big Picture inside a standalone gamescope compositor. The wrapper also
 # starts the Discord voice overlay before exec'ing Steam (see
-# scripts/game-mode-wrapper.sh).
+# game-mode-wrapper).
 # Direct, no overlay: command = "/usr/bin/gamescope -e -- /usr/bin/steam -gamepadui"
 # No -W/-H/-O flags: embedded gamescope auto-picks the connected output and its
 # EDID-preferred mode. HDR flags are graceful no-ops on non-HDR displays.
-command = "/usr/bin/gamescope -e --hdr-enabled --hdr-itm-enabled --hide-cursor-delay 3000 -- /etc/greetd/scripts/game-mode-wrapper.sh"
+command = "/usr/bin/gamescope -e --hdr-enabled --hdr-itm-enabled --hide-cursor-delay 3000 -- /usr/bin/game-mode-wrapper"
 user = "{{games_user}}"
 
 [default_session]
