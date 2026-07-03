@@ -55,25 +55,31 @@ Components on disk after install:
 
 | Path | What |
 |---|---|
-| `/usr/local/bin/game-mode` | daemon binary (incl. the approval client + greeter banners) |
-| `/usr/local/bin/steamos-session-select` | Steam "Switch to Desktop" hook (logs to `/tmp/steamos-session-select.log`) |
-| `/usr/local/bin/access-gate-verifier` | verifier (Rust: webauthn-rs + web-push, `verifier/`) |
+| `/usr/bin/game-mode` | daemon binary (incl. the approval client, greeter banners, and the `setup` subcommand) |
+| `/usr/bin/game-mode-wrapper` | game session entrypoint (bwrap home mask → Steam Big Picture) |
+| `/usr/bin/steamos-session-select` | Steam "Switch to Desktop" hook (logs to `/tmp/steamos-session-select.log`) |
+| `/usr/bin/access-gate-verifier` | verifier (Rust: webauthn-rs + web-push, `verifier/`) |
+| `/usr/share/game-mode/greetd/` | greetd config templates, rendered into `/etc/greetd` by `game-mode setup` |
+| `/etc/game-mode/config.toml` | runtime config (VT, session user/group, game library dir) — written by `game-mode setup` |
 | `/run/access-gate/ctrl.sock` | control socket (created by the verifier at start) |
 | `/etc/game-mode/approval.env` | verifier + daemon config (RP ID, socket, timeout) |
 | `/var/lib/access-gate/` | enrolled passkey, push subscription, VAPID key (system user `access-gate`) |
-| `/etc/greetd/` | greeter + game session configs, wrapper scripts |
+| `/etc/greetd/` | greeter + game session configs (rendered/deployed by `game-mode setup`) |
 | `/etc/sudoers.d/greeter-greetd` | exact-match grants: restart greetd, fgconsole, rm the greetd runfile |
 
 ### One-time phone setup
 
-`install.sh` prints two QR codes (only when not already done):
+After `sudo game-mode setup` (only while not already done):
 
-1. **Enroll** — scan, tap "Create passkey", save it in your phone's passkey
-   provider (Google Password Manager, Bitwarden, …). Gated by an
-   `enroll-open` flag file and only possible while no key is enrolled.
-2. **Notifications** — scan, tap "Enable notifications". Registers a Web
-   Push subscription (sent with high urgency so a locked/dozing phone still
-   buzzes). No extra app needed — the pushes go through the browser.
+1. **Enroll** — open `https://<tailnet-fqdn>/enroll` on the phone (after
+   `sudo -u access-gate touch /var/lib/access-gate/enroll-open`), tap
+   "Create passkey", save it in your phone's passkey provider (Google
+   Password Manager, Bitwarden, …). Gated by the `enroll-open` flag file and
+   only possible while no key is enrolled.
+2. **Notifications** — open `https://<tailnet-fqdn>/setup`, tap "Enable
+   notifications". Registers a Web Push subscription (sent with high urgency
+   so a locked/dozing phone still buzzes). No extra app needed — the pushes
+   go through the browser.
 
 To redo either later:
 
@@ -90,36 +96,58 @@ in one, or relax Bitwarden's vault timeout.
 
 ## Requirements
 
-- Arch Linux. `[multilib]` enabled (Steam).
-- Packages: `greetd` (or `greetd-git`), `greetd-regreet`, `hyprland` ≥ 0.55
-  (greeter compositor; sessions launch via its `start-hyprland` watchdog),
-  `gamescope`, `steam`, `bubblewrap`, `swaybg`, `qrencode`, `xdotool`,
-  `python`, `rust`/`rustup`, `curl`, `tailscale`, `discord`
-  (auto-installed by the installer when missing), `discover-overlay` (AUR).
-- Optional (AUR, skipped if `yay` is absent): `canta-gtk-theme`,
-  `discover-overlay`.
-- **Tailscale up and logged in** before installing — the verifier's HTTPS
+- Arch Linux (primary; Fedora best-effort via COPR). `[multilib]` enabled
+  (Steam).
+- Packages beyond the hard deps (`greetd`, `gamescope`): `greetd-regreet`,
+  `hyprland` ≥ 0.55 (greeter compositor; sessions launch via its
+  `start-hyprland` watchdog), `steam`, `bubblewrap`, `swaybg`, `tailscale`,
+  `discord`, `discover-overlay` (AUR).
+- **Tailscale up and logged in** before running setup — the verifier's HTTPS
   origin is the tailnet FQDN.
 - A phone on the tailnet with a passkey provider, and a gamepad with a
   Guide/Mode button.
-- The game session autologin user, group, and game library directory are
-  configurable per machine: `cp install.conf.example install.conf` and edit
-  (defaults come from `src/config.rs`).
+- The game session autologin user, group, VT, and game library directory
+  live in `/etc/game-mode/config.toml`, written interactively by
+  `sudo game-mode setup` (defaults come from `src/config.rs`).
 
 ## Installation
 
-```bash
-./install.sh          # as a regular user; escalates with sudo where needed
+Arch, from the [mason] pacman repo:
+
+```ini
+# /etc/pacman.conf
+[mason]
+SigLevel = Optional TrustAll
+Server = https://masonrhodesdev.github.io/arch-repo/x86_64
 ```
 
-The installer builds the daemon, sets up users/permissions/sudoers, deploys
-the greetd configs (verifying the greeter Hyprland config parses on the
-installed Hyprland), deploys and starts the verifier, configures
-`tailscale serve`, and walks through the phone QR setup. It is idempotent —
-re-run it after pulling changes.
+```bash
+sudo pacman -Sy game-mode
+```
 
-Note: it restarts greetd at the end; an active desktop session keeps running,
-the greeter just respawns on its VT.
+Fedora (best-effort — steam is in RPM Fusion, tailscale in Tailscale's repo):
+
+```bash
+sudo dnf copr enable solaris765/game-mode
+sudo dnf install game-mode
+```
+
+The package installs files only. Provision the host afterwards:
+
+```bash
+sudo game-mode setup
+```
+
+`game-mode setup` prompts for the game-session user/group/library dir and
+writes `/etc/game-mode/config.toml`, creates the games user, sets up
+`/etc/greetd` permissions, renders and deploys the greetd configs (verifying
+the greeter Hyprland config parses on the installed Hyprland), installs the
+sudoers grant, checks tailscale + writes the approval env, configures
+`tailscale serve`, and enables the services. It is idempotent — re-run it
+after upgrades or to reconfigure.
+
+Note: it offers to restart greetd at the end; an active desktop session
+keeps running, the greeter just respawns on its VT.
 
 ## Usage
 
@@ -161,13 +189,18 @@ Discord runs **inside** the gamescope session with full controller support:
   gamescope's Xwayland, autostarted by the wrapper with retries; log at
   `/tmp/discover-overlay.log`) renders who's talking over BP and games.
 - **Decky Loader** (Big Picture QAM plugins): install once under the game
-  user's `~/homebrew` (https://decky.xyz); `install.sh` enables its service
-  when present.
+  user's `~/homebrew` (https://decky.xyz) and enable its
+  `plugin_loader.service`.
 
-Setup is automated by the installer: the "Discord" non-Steam shortcut is
-written into `shortcuts.vdf` by `game-mode-steam-shortcut` (Rust, binary-VDF,
-idempotent, backs the file up; requires Steam to be closed — the installer
-warns and prints the retry command otherwise). discover-overlay needs no
+The "Discord" non-Steam shortcut is written into `shortcuts.vdf` by
+`game-mode-steam-shortcut` (Rust, binary-VDF, idempotent, backs the file up;
+requires Steam to be closed). One-time, as the games user:
+
+```bash
+game-mode-steam-shortcut --name Discord --exe /usr/bin/game-mode-discord
+```
+
+discover-overlay needs no
 config: its defaults show the voice overlay whenever you're in a channel
 (`discover-overlay --configure` on the desktop only to restyle/reposition).
 
@@ -200,8 +233,9 @@ re-sync) without touching running games.
 Known gotchas:
 
 - **Greeter shows a Hyprland config error banner** after a Hyprland update:
-  an option used by `/etc/greetd/hypr.conf` was removed. `install.sh` runs
-  `hyprland --verify-config` against it and refuses to deploy a broken one.
+  an option used by `/etc/greetd/hypr.conf` was removed. `game-mode setup`
+  runs `hyprland --verify-config` against it and refuses to deploy a broken
+  one.
 - **Regular login bounces straight back to the greeter** (uwsm-managed
   sessions): if `/usr/share/wayland-sessions/hyprland.desktop` was hidden to
   de-duplicate the greeter's session list, use `NoDisplay=true` — uwsm
@@ -216,4 +250,4 @@ Known gotchas:
 
 ## License
 
-[Add your license information here]
+MIT — see [LICENSE](LICENSE).
