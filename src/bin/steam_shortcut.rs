@@ -2,7 +2,7 @@
 //! userdata/<id>/config/shortcuts.vdf (binary VDF). Steam must be closed —
 //! it rewrites the file from memory on exit.
 //!
-//! Usage: game-mode-steam-shortcut --name Discord --exe /usr/local/bin/game-mode-discord
+//! Usage: game-mode-steam-shortcut --name Discord --exe /usr/bin/game-mode-discord
 //!
 //! Exit: 0 = added or already present (per existing userdata), 1 = bad args
 //! or no userdata found, 2 = parse/write failure.
@@ -21,7 +21,11 @@ fn crc32(data: &[u8]) -> u32 {
     for &b in data {
         crc ^= b as u32;
         for _ in 0..8 {
-            crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+            crc = if crc & 1 != 0 {
+                (crc >> 1) ^ 0xEDB8_8320
+            } else {
+                crc >> 1
+            };
         }
     }
     !crc
@@ -147,7 +151,12 @@ impl<'a> Scanner<'a> {
                     }
                     self.pos += 4;
                 }
-                t => return Err(format!("unknown vdf type byte 0x{t:02x} at {}", self.pos - 1)),
+                t => {
+                    return Err(format!(
+                        "unknown vdf type byte 0x{t:02x} at {}",
+                        self.pos - 1
+                    ))
+                }
             }
         }
     }
@@ -190,7 +199,12 @@ fn splice(buf: &[u8], mut edits: Vec<(Span, String)>) -> Vec<u8> {
     out
 }
 
-fn add_to_file(path: &Path, name: &str, exe: &str, start_dir: &str) -> Result<(&'static str, u32), String> {
+fn add_to_file(
+    path: &Path,
+    name: &str,
+    exe: &str,
+    start_dir: &str,
+) -> Result<(&'static str, u32), String> {
     let exe_quoted = format!("\"{exe}\"");
     let dir_quoted = format!("\"{start_dir}\"");
     let new_appid = shortcut_appid(&exe_quoted, name);
@@ -300,7 +314,9 @@ fn main() {
         i += 2;
     }
     let (Some(name), Some(exe)) = (name, exe) else {
-        eprintln!("usage: game-mode-steam-shortcut --name <AppName> --exe </path/to/exe> [--icon <png>]");
+        eprintln!(
+            "usage: game-mode-steam-shortcut --name <AppName> --exe </path/to/exe> [--icon <png>]"
+        );
         std::process::exit(1);
     };
     let icon = icon.map(PathBuf::from);
@@ -311,8 +327,9 @@ fn main() {
 
     if fs::read_dir("/proc")
         .map(|d| {
-            d.filter_map(|e| e.ok())
-                .any(|e| fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == "steam"))
+            d.filter_map(|e| e.ok()).any(|e| {
+                fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == "steam")
+            })
         })
         .unwrap_or(false)
     {
@@ -323,7 +340,10 @@ fn main() {
     let home = env::var("HOME").unwrap_or_default();
     let userdata = PathBuf::from(&home).join(".local/share/Steam/userdata");
     let Ok(users) = fs::read_dir(&userdata) else {
-        eprintln!("no Steam userdata at {} (log into Steam once first)", userdata.display());
+        eprintln!(
+            "no Steam userdata at {} (log into Steam once first)",
+            userdata.display()
+        );
         std::process::exit(1);
     };
 

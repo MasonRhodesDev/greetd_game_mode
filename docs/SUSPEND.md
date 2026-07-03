@@ -10,7 +10,7 @@ internet to another server, and hosts NFS/libvirt/the access-gate verifier), so
 logind refused Steam's suspend call and Steam parked mid-suspend — black Big
 Picture, input pump dead, unrecoverable in place.
 
-Defense layers (installed by `install.sh`, invoked by the session wrapper):
+Defense layers (installed by the package, invoked by the session wrapper):
 
 1. **`game-mode-steam-config apply`** (pre-Steam-launch, every session entry):
    - suspend **available** → `IdleSuspendACSeconds=3600` (normal console sleep)

@@ -1,11 +1,6 @@
-use anyhow::Result;
-use std::{
-    fs,
-    os::unix::fs::symlink,
-    path::Path,
-    process::Command,
-};
 use crate::config::Config;
+use anyhow::Result;
+use std::{fs, os::unix::fs::symlink, path::Path, process::Command};
 use tracing::{debug, info};
 
 /// Atomically point config.toml at `target`: create the symlink under a temp
@@ -15,7 +10,10 @@ use tracing::{debug, info};
 /// greetd with no config).
 fn set_config_symlink(target: &Path, config_path: &Path) -> Result<()> {
     let tmp = config_path.with_file_name("config.toml.new");
-    debug!("Symlinking {:?} -> {:?} (via {:?})", config_path, target, tmp);
+    debug!(
+        "Symlinking {:?} -> {:?} (via {:?})",
+        config_path, target, tmp
+    );
     let _ = fs::remove_file(&tmp); // stale temp from a previous crash
     symlink(target, &tmp)?;
     fs::rename(&tmp, config_path)?;
@@ -47,7 +45,7 @@ pub fn switch_to_game_mode() -> Result<()> {
     // greetd only honours [initial_session] on its first run since boot,
     // tracked by the presence of this runfile — remove it or the restart
     // below lands on the greeter instead of the game session. The exact
-    // command is allowed in sudoers (see install.sh).
+    // command is allowed in sudoers (see dist/sudoers-greeter-greetd).
     let status = Command::new("sudo")
         .args(["/usr/bin/rm", "-f", "/run/greetd.run"])
         .status()?;

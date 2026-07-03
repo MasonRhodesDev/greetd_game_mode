@@ -3,18 +3,21 @@
 //! phone.
 //!
 //! Two planes:
-//!   - WEB (tcp 127.0.0.1:AG_WEB_PORT, proxied to HTTPS by `tailscale serve`):
-//!       /                      status JSON
-//!       /enroll, /enroll/*     one-time passkey registration (flag-gated)
-//!       /setup, /sw.js, /push/subscribe
-//!                              one-time Web Push subscription (state-gated)
-//!       /approve/<id>, ...     assertion ceremony deciding a request
-//!   - CTRL (unix socket AG_CTRL_SOCKET, 0660 owner:group of the service):
-//!       newline-delimited JSON, blocking request/response. The daemon writes
-//!       one request line; the verifier answers `{"id":..}` immediately and
-//!       `{"status":..}` once the phone decides (or the wait times out).
-//!       No polling, and unlike a localhost TCP port the socket permissions
-//!       limit who can create requests at all.
+//!
+//! ```text
+//! - WEB (tcp 127.0.0.1:AG_WEB_PORT, proxied to HTTPS by `tailscale serve`):
+//!     /                      status JSON
+//!     /enroll, /enroll/*     one-time passkey registration (flag-gated)
+//!     /setup, /sw.js, /push/subscribe
+//!                            one-time Web Push subscription (state-gated)
+//!     /approve/<id>, ...     assertion ceremony deciding a request
+//! - CTRL (unix socket AG_CTRL_SOCKET, 0660 owner:group of the service):
+//!     newline-delimited JSON, blocking request/response. The daemon writes
+//!     one request line; the verifier answers `{"id":..}` immediately and
+//!     `{"status":..}` once the phone decides (or the wait times out).
+//!     No polling, and unlike a localhost TCP port the socket permissions
+//!     limit who can create requests at all.
+//! ```
 //!
 //! Trust = the single enrolled passkey (phone secure element + biometric,
 //! user verification required on every assertion). The push notification
@@ -64,14 +67,18 @@ impl Cfg {
         Ok(Cfg {
             rp_id,
             origin,
-            web_port: var("AG_WEB_PORT").and_then(|v| v.parse().ok()).unwrap_or(8730),
+            web_port: var("AG_WEB_PORT")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(8730),
             ctrl_socket: var("AG_CTRL_SOCKET")
                 .unwrap_or_else(|| "/run/access-gate/ctrl.sock".into())
                 .into(),
             data_dir: var("AG_DATA_DIR")
                 .unwrap_or_else(|| "/var/lib/access-gate".into())
                 .into(),
-            request_ttl: var("AG_REQUEST_TTL").and_then(|v| v.parse().ok()).unwrap_or(120),
+            request_ttl: var("AG_REQUEST_TTL")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(120),
             vapid_sub: var("AG_VAPID_SUB").unwrap_or_else(|| "access-gate@localhost".into()),
             user_name: var("AG_USER_NAME").unwrap_or_else(|| "game-mode".into()),
         })
@@ -161,7 +168,9 @@ fn load_or_generate_vapid(data_dir: &Path) -> Result<SecretKey> {
         let _ = fs::remove_file(data_dir.join("push_subscription.json"));
     }
     let key = SecretKey::random(&mut OsRng);
-    let pem = key.to_sec1_pem(Default::default()).map_err(|e| anyhow!("PEM encode: {e}"))?;
+    let pem = key
+        .to_sec1_pem(Default::default())
+        .map_err(|e| anyhow!("PEM encode: {e}"))?;
     fs::write(&key_file, pem.as_bytes())?;
     fs::set_permissions(&key_file, fs::Permissions::from_mode(0o600))?;
     info!("generated new VAPID key");
@@ -184,9 +193,12 @@ fn send_push(app: &App, payload: Value) {
         }
     };
     let result = (|| -> Result<u16> {
-        let mut sig =
-            VapidSignatureBuilder::from_base64(&app.vapid_private_b64u(), web_push::URL_SAFE_NO_PAD, &sub)
-                .map_err(|e| anyhow!("vapid: {e:?}"))?;
+        let mut sig = VapidSignatureBuilder::from_base64(
+            &app.vapid_private_b64u(),
+            web_push::URL_SAFE_NO_PAD,
+            &sub,
+        )
+        .map_err(|e| anyhow!("vapid: {e:?}"))?;
         sig.add_claim("sub", format!("mailto:{}", app.cfg.vapid_sub));
         let signature = sig.build().map_err(|e| anyhow!("vapid build: {e:?}"))?;
 
@@ -209,7 +221,8 @@ fn send_push(app: &App, payload: Value) {
                 for (k, v) in &p.crypto_headers {
                     req = req.set(k, v);
                 }
-                req.set("Content-Encoding", "aes128gcm").send_bytes(&p.content)
+                req.set("Content-Encoding", "aes128gcm")
+                    .send_bytes(&p.content)
             }
             None => req.call(),
         };
@@ -304,10 +317,7 @@ fn handle_ctrl(stream: UnixStream, app: Arc<App>) -> Result<()> {
                 final_status = "timeout".to_string();
                 break;
             }
-            let (guard, _) = app
-                .decided
-                .wait_timeout(requests, deadline - now)
-                .unwrap();
+            let (guard, _) = app.decided.wait_timeout(requests, deadline - now).unwrap();
             requests = guard;
         }
         requests.remove(&rid);
@@ -370,7 +380,9 @@ fn respond_text(req: tiny_http::Request, status: u16, body: &str) {
 }
 
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 fn read_body(req: &mut tiny_http::Request) -> String {
@@ -500,7 +512,10 @@ fn handle_web(mut req: tiny_http::Request, app: Arc<App>) {
                 );
                 return;
             }
-            respond_html(req, PAGE_SETUP.replace("__VAPID_PUB__", &app.vapid_public_b64u()));
+            respond_html(
+                req,
+                PAGE_SETUP.replace("__VAPID_PUB__", &app.vapid_public_b64u()),
+            );
         }
         (Method::Post, ["push", "subscribe"]) => {
             if !app.push_setup_allowed() {
@@ -766,8 +781,7 @@ fn page(tmpl: &str) -> String {
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .without_time()
         .init();
@@ -803,8 +817,8 @@ fn main() -> Result<()> {
         });
     }
 
-    let server = Server::http(("127.0.0.1", app.cfg.web_port))
-        .map_err(|e| anyhow!("web listener: {e}"))?;
+    let server =
+        Server::http(("127.0.0.1", app.cfg.web_port)).map_err(|e| anyhow!("web listener: {e}"))?;
     info!("web listening on 127.0.0.1:{}", app.cfg.web_port);
     loop {
         let req = server.recv()?;
@@ -832,7 +846,10 @@ mod once_cell_lite {
 
     impl<T> Lazy<T> {
         pub const fn new(init: fn() -> T) -> Self {
-            Self { cell: OnceLock::new(), init }
+            Self {
+                cell: OnceLock::new(),
+                init,
+            }
         }
     }
 

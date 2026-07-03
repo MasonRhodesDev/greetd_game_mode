@@ -1,11 +1,20 @@
 #!/bin/bash
 #
 # Game-mode session entrypoint. Executed as the child of gamescope, i.e.
-#   /usr/bin/gamescope -e -- /etc/greetd/scripts/game-mode-wrapper.sh
+#   /usr/bin/gamescope -e -- /usr/bin/game-mode-wrapper
 #
 # Runs twice: the outer invocation builds the bubblewrap home mask and
 # re-execs itself inside it with --inner; the inner invocation starts the
 # session apps (Discord, voice overlay) and execs Steam Big Picture.
+
+# Game library dir from the runtime config (written by `game-mode setup`).
+# Naive TOML scrape: the only `dir = "..."` key lives in [session], so a
+# line-match is sufficient. Falls back to the built-in default.
+GAMES_DIR=/games
+if [ -r /etc/game-mode/config.toml ]; then
+    _dir=$(sed -n 's/^[[:space:]]*dir[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' /etc/game-mode/config.toml | tail -1)
+    [ -n "$_dir" ] && GAMES_DIR="$_dir"
+fi
 
 # ----------------------------------------------------------------------------
 # Inner: everything here runs INSIDE the mask, under gamescope.
@@ -41,7 +50,7 @@ start_session_apps() {
             for attempt in 1 2 3 4 5; do
                 sleep 3
                 echo "=== discover-overlay attempt $attempt $(date -Is)" >> /tmp/discover-overlay.log
-                env -u WAYLAND_DISPLAY GDK_BACKEND=x11 /usr/local/bin/game-mode-overlay >> /tmp/discover-overlay.log 2>&1
+                env -u WAYLAND_DISPLAY GDK_BACKEND=x11 /usr/bin/game-mode-overlay >> /tmp/discover-overlay.log 2>&1
             done
             echo "=== discover-overlay gave up $(date -Is)" >> /tmp/discover-overlay.log
         ) &
@@ -67,9 +76,9 @@ fi
 # root. Verified: SLR/pressure-vessel (nested bwrap) runs fine inside this.
 #
 # Extend-on-breakage: if a game needs another dir, add a --bind line.
-# Escape hatch while debugging: `touch {{games_dir}}/.game-mode-no-mask` and relaunch.
+# Escape hatch while debugging: `touch $GAMES_DIR/.game-mode-no-mask` and relaunch.
 # ----------------------------------------------------------------------------
-if [ -e {{games_dir}}/.game-mode-no-mask ] || ! command -v bwrap >/dev/null 2>&1; then
+if [ -e "$GAMES_DIR/.game-mode-no-mask" ] || ! command -v bwrap >/dev/null 2>&1; then
     echo "game-mode-wrapper: MASK DISABLED (flag file or bwrap missing)" >&2
     start_session_apps
     exec steam -gamepadui -steamos3
@@ -90,7 +99,7 @@ MASK=(
     # Sockets/IPC/state: X11+Wayland (/tmp), runtime dir + dbus + pipewire (/run)
     --bind /tmp /tmp --bind /run /run
     # Game library
-    --bind {{games_dir}} {{games_dir}}
+    --bind "$GAMES_DIR" "$GAMES_DIR"
     # Curated home: starts empty, gains only the binds below, then goes RO
     --tmpfs "$HOME"
 )
@@ -115,4 +124,4 @@ maybe_bind --bind "$HOME/.config/r2modmanPlus-local"
 MASK+=(--remount-ro "$HOME")
 
 echo "game-mode-wrapper: launching session inside bwrap home mask" >&2
-exec bwrap "${MASK[@]}" -- /etc/greetd/scripts/game-mode-wrapper.sh --inner
+exec bwrap "${MASK[@]}" -- /usr/bin/game-mode-wrapper --inner

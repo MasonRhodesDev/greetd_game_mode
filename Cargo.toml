@@ -5,16 +5,14 @@ members = ["verifier"]
 name = "game_mode"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Mason Rhodes <mrhodesdev@gmail.com>"]
 description = "A greetd background service for handling gamepad input"
+license = "MIT"
+repository = "https://github.com/MasonRhodesDev/greetd_game_mode"
 
 [[bin]]
-name = "game_mode"
+name = "game-mode"
 path = "src/main.rs"
-
-[[bin]]
-name = "generate_constants"
-path = "src/bin/generate_constants.rs"
 
 [[bin]]
 name = "game-mode-steam-shortcut"
@@ -43,3 +41,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "time"] }
 tracing-appender = "0.2"
 systemd = "0.10"
+toml = "0.8"
