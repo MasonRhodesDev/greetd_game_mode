@@ -1,0 +1,17 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: MasonRhodesDev/packaging-workflows/.github/workflows/rust-ci.yml@main
+    with:
+      # libsystemd/libudev (journal + gilrs) and openssl (verifier)
+      pacman-deps: systemd openssl
