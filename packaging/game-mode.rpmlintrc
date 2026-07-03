@@ -12,5 +12,3 @@ addFilter("invalid-url Source1")
 
 # /var/lib/access-gate is deliberately owned by the access-gate system user
 # created via the shipped sysusers.d snippet.
-addFilter("non-standard-uid .* access-gate")
-addFilter("non-standard-gid .* access-gate")

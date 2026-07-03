@@ -10,6 +10,7 @@ pkgver=0.1.0
 pkgrel=1
 pkgdesc="Console-style greetd game mode: gamepad-triggered Steam Big Picture session with passkey approval"
 arch=('x86_64')
+options=(!lto)  # ring's C objects become GCC LTO bitcode that ld.lld cannot read
 url="https://github.com/MasonRhodesDev/greetd_game_mode"
 license=('MIT')
 install="$pkgname.install"

@@ -2,3 +2,7 @@
 /tmp
 /install.conf
 __pycache__/
+packaging/src/
+packaging/pkg/
+packaging/*.tar.gz
+packaging/*.pkg.tar.zst
