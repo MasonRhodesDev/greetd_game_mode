@@ -12,7 +12,7 @@
 %bcond_without check
 
 Name:           game-mode
-Version:        0.1.0
+Version:        0.1.1
 Release:        1%{?dist}
 Summary:        Console-style greetd game mode with gamepad entry and passkey approval
 License:        MIT
@@ -109,6 +109,9 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_datadir}/game-mode/
 
 %changelog
+* Fri Jul 03 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.1-1
+- Fix first-run CI gates (see git log)
+
 * Thu Jul 02 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.0-1
 - Initial packaged release: runtime config in /etc/game-mode/config.toml,
   `game-mode setup` provisioning subcommand replaces install.sh
