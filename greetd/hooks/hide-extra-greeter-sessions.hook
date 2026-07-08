@@ -1,0 +1,13 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/share/wayland-sessions/hyprland.desktop
+Target = usr/share/wayland-sessions/hyprland-uwsm.desktop
+Target = usr/share/wayland-sessions/kodi-gbm.desktop
+Target = usr/share/xsessions/kodi.desktop
+
+[Action]
+Description = Hiding plain Hyprland + Kodi sessions from the greeter...
+When = PostTransaction
+Exec = /usr/local/bin/hide-extra-sessions.sh

@@ -1,6 +1,6 @@
 [terminal]
-vt = {{vt}}
+vt = 1
 
 [default_session]
-command = "start-hyprland -- --config /etc/greetd/hypr.conf"
+command = "/etc/greetd/scripts/greeter-launcher.sh"
 user = "greeter" 

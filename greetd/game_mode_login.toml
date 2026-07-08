@@ -5,7 +5,7 @@
 source_profile = false
 
 [terminal]
-vt = {{vt}}
+vt = 1
 
 # Entered by the game-mode service when the gamepad Guide button is pressed at
 # the greeter: it symlinks config.toml -> this file and restarts greetd.
@@ -20,15 +20,15 @@ vt = {{vt}}
 [initial_session]
 # Steam Big Picture inside a standalone gamescope compositor. The wrapper also
 # starts the Discord voice overlay before exec'ing Steam (see
-# game-mode-wrapper).
+# scripts/game-mode-wrapper.sh).
 # Direct, no overlay: command = "/usr/bin/gamescope -e -- /usr/bin/steam -gamepadui"
 # No -W/-H/-O flags: embedded gamescope auto-picks the connected output and its
 # EDID-preferred mode. HDR flags are graceful no-ops on non-HDR displays.
-command = "/usr/bin/gamescope -e --hdr-enabled --hdr-itm-enabled --hide-cursor-delay 3000 -- /usr/bin/game-mode-wrapper"
-user = "{{games_user}}"
+command = "/usr/bin/gamescope -e --hdr-enabled --hdr-itm-enabled --hide-cursor-delay 3000 -- /etc/greetd/scripts/game-mode-wrapper.sh"
+user = "mason"
 
 [default_session]
 # regreet GTK4 greeter under Hyprland, identical to config_default.toml. Reached
 # when Steam Big Picture exits, i.e. this is the "logged out" landing screen.
-command = "start-hyprland -- --config /etc/greetd/hypr.conf"
+command = "/etc/greetd/scripts/greeter-launcher.sh"
 user = "greeter"

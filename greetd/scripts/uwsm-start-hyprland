@@ -1,0 +1,17 @@
+#!/bin/sh
+# Session entrypoint for the greeter's "Hyprland (uwsm)" entry.
+#
+# uwsm refuses to start while the PREVIOUS session's graphical targets are
+# still deactivating — and a logout can take ~90s to drain (steam/discord
+# teardown). Logging back in during that window used to bounce straight back
+# to the greeter (observed 2026-07-08 00:12–00:14). Wait it out instead:
+# worst case the greeter shows a blank pause, then the session starts.
+
+DEADLINE=$(( $(date +%s) + 90 ))
+while systemctl --user --quiet is-active graphical-session.target 2>/dev/null \
+   || systemctl --user list-units --state=deactivating --no-legend 2>/dev/null | grep -q 'wayland-session'; do
+    [ "$(date +%s)" -ge "$DEADLINE" ] && break
+    sleep 1
+done
+
+exec uwsm start -e -D Hyprland -- /usr/bin/start-hyprland
