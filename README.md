@@ -20,17 +20,27 @@ Three cooperating pieces:
 
 ## Approval flow
 
-```
-Guide button at greeter
-  └─ game-mode daemon ── fail-closed gate, built into the binary (src/approval.rs)
-       └─ one blocking request on /run/access-gate/ctrl.sock (unix socket)
-            ├─ verifier Web-Pushes the phone ("Enter game mode?")
-            ├─ on-screen greeter banner: "Approval sent to your phone…"
-            └─ verifier answers when the phone decides (no polling)
-phone: tap notification ── approve page auto-fires the passkey prompt
-  └─ fingerprint ── WebAuthn assertion verified (user verification required)
-approved ── blank VT ── rm /run/greetd.run ── symlink game config ── restart greetd
-  └─ greetd [initial_session]: gamescope + Steam Big Picture (bwrap home mask)
+```mermaid
+sequenceDiagram
+    participant Pad as Gamepad
+    participant Daemon as game-mode daemon<br/>(greeter user, gilrs)
+    participant Verifier as access-gate-verifier<br/>(user access-gate, tiny_http on 127.0.0.1,<br/>HTTPS via tailscale serve at the tailnet FQDN)
+    participant Phone as Phone<br/>(passkey + push)
+    participant Greetd as greetd
+
+    Pad->>Daemon: Guide button at the greeter
+    Note over Daemon: fail-closed gate, built into the binary (src/approval.rs)
+    Daemon->>Verifier: one JSON request line on /run/access-gate/ctrl.sock<br/>(unix socket, 0660 access-gate:greeter)
+    Verifier-->>Daemon: {"id"} reply, immediate
+    Verifier->>Phone: Web Push "Enter game mode?" (Urgency: high)
+    Daemon->>Daemon: hyprctl notify banner "Approval sent to your phone…"
+    Phone->>Verifier: tap notification, approve page auto-fires the passkey prompt
+    Phone->>Verifier: WebAuthn assertion (user verification required)
+    Verifier-->>Daemon: verify, then {"status"} line on the same socket (no polling)
+    Daemon->>Daemon: blank VT, rm /run/greetd.run
+    Daemon->>Greetd: atomic symlink swap of /etc/greetd/config.toml to the game config,<br/>restart greetd (exact-match sudoers grants)
+    Greetd->>Greetd: [initial_session] launches gamescope + Steam Big Picture (bwrap $HOME mask)
+    Note over Daemon,Greetd: one-shot — the symlink resets after entry,<br/>and exiting Steam returns to the greeter
 ```
 
 Test the gate without a gamepad: `sudo -u greeter game-mode --test-approval`
