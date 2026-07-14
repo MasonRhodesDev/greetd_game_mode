@@ -30,5 +30,5 @@ user = "mason"
 [default_session]
 # regreet GTK4 greeter under Hyprland, identical to config_default.toml. Reached
 # when Steam Big Picture exits, i.e. this is the "logged out" landing screen.
-command = "/usr/bin/cage -s -- /usr/bin/regreet"
+command = "/usr/bin/cage -s -m last -d -- /usr/bin/regreet"
 user = "greeter"

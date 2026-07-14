@@ -6,7 +6,7 @@
 # greetd config swap, sudoers, tailscale) is `sudo game-mode setup`.
 
 pkgname=game-mode
-pkgver=0.1.4
+pkgver=0.1.5
 pkgrel=1
 pkgdesc="Console-style greetd game mode: gamepad-triggered Steam Big Picture session with passkey approval"
 arch=('x86_64')

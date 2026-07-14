@@ -12,7 +12,7 @@
 %bcond_without check
 
 Name:           game-mode
-Version:        0.1.4
+Version:        0.1.5
 Release:        1%{?dist}
 Summary:        Console-style greetd game mode with gamepad entry and passkey approval
 License:        MIT
@@ -115,6 +115,10 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_datadir}/game-mode/
 
 %changelog
+* Tue Jul 14 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.5-1
+- Greeter: cage -m last -d — fullscreen on one output instead of a window
+  centered across the multi-monitor span (cage cannot mirror outputs)
+
 * Tue Jul 14 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.4-1
 - Retire the Hyprland greeter: cage + regreet only. Drops greeter-launcher.sh,
   hypr.conf/hypr.lua, greeter-hint-sync, and the greeter config verification;
