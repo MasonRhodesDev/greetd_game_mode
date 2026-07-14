@@ -2,5 +2,5 @@
 vt = 1
 
 [default_session]
-command = "/etc/greetd/scripts/greeter-launcher.sh"
+command = "/usr/bin/cage -s -- /usr/bin/regreet"
 user = "greeter" 

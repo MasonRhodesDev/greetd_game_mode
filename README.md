@@ -108,10 +108,10 @@ in one, or relax Bitwarden's vault timeout.
 
 - Arch Linux (primary; Fedora best-effort via COPR). `[multilib]` enabled
   (Steam).
-- Packages beyond the hard deps (`greetd`, `gamescope`): `greetd-regreet`,
-  `hyprland` ≥ 0.55 (greeter compositor; sessions launch via its
-  `start-hyprland` watchdog), `steam`, `bubblewrap`, `swaybg`, `tailscale`,
-  `discord`, `discover-overlay` (AUR).
+- Packages beyond the hard deps (`greetd`, `gamescope`, `cage`):
+  `greetd-regreet` (the greeter is cage + regreet; desktop sessions still
+  launch Hyprland via the `start-hyprland` watchdog), `steam`, `bubblewrap`,
+  `swaybg`, `tailscale`, `discord`, `discover-overlay` (AUR).
 - **Tailscale up and logged in** before running setup — the verifier's HTTPS
   origin is the tailnet FQDN.
 - A phone on the tailnet with a passkey provider, and a gamepad with a
@@ -150,8 +150,8 @@ sudo game-mode setup
 
 `game-mode setup` prompts for the game-session user/group/library dir and
 writes `/etc/game-mode/config.toml`, creates the games user, sets up
-`/etc/greetd` permissions, renders and deploys the greetd configs (verifying
-the greeter Hyprland config parses on the installed Hyprland), installs the
+`/etc/greetd` permissions, renders and deploys the greetd configs (the
+greeter is cage + regreet — no compositor config to break), installs the
 sudoers grant, checks tailscale + writes the approval env, configures
 `tailscale serve`, and enables the services. It is idempotent — re-run it
 after upgrades or to reconfigure.
@@ -242,10 +242,8 @@ re-sync) without touching running games.
 
 Known gotchas:
 
-- **Greeter shows a Hyprland config error banner** after a Hyprland update:
-  an option used by `/etc/greetd/hypr.conf` was removed. `game-mode setup`
-  runs `hyprland --verify-config` against it and refuses to deploy a broken
-  one.
+- The greeter is deliberately cage + regreet, not Hyprland: a compositor
+  upgrade must never be able to break the login path.
 - **Regular login bounces straight back to the greeter** (uwsm-managed
   sessions): if `/usr/share/wayland-sessions/hyprland.desktop` was hidden to
   de-duplicate the greeter's session list, use `NoDisplay=true` — uwsm

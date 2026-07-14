@@ -6,7 +6,7 @@
 # greetd config swap, sudoers, tailscale) is `sudo game-mode setup`.
 
 pkgname=game-mode
-pkgver=0.1.3
+pkgver=0.1.4
 pkgrel=1
 pkgdesc="Console-style greetd game mode: gamepad-triggered Steam Big Picture session with passkey approval"
 arch=('x86_64')
@@ -67,7 +67,7 @@ package() {
   install -Dm644 dist/game-mode.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/game-mode.conf"
 
   # greetd payload: templates rendered into /etc/greetd by `game-mode setup`
-  for f in config_default.toml game_mode_login.toml hypr.conf regreet.toml environments bg.png; do
+  for f in config_default.toml game_mode_login.toml regreet.toml environments bg.png; do
     install -Dm644 "greetd/$f" "$pkgdir/usr/share/game-mode/greetd/$f"
   done
   install -Dm644 dist/sudoers-greeter-greetd "$pkgdir/usr/share/game-mode/sudoers/greeter-greetd"

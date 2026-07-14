@@ -12,7 +12,7 @@
 %bcond_without check
 
 Name:           game-mode
-Version:        0.1.3
+Version:        0.1.4
 Release:        1%{?dist}
 Summary:        Console-style greetd game mode with gamepad entry and passkey approval
 License:        MIT
@@ -27,8 +27,8 @@ BuildRequires:  systemd-devel
 BuildRequires:  openssl-devel
 Requires:       greetd
 Requires:       gamescope
-# cage is the greeter-launcher fallback compositor — the safety net when the
-# (custom-built) Hyprland breaks; regreet is source-built on Fedora, not required here.
+# cage runs the greeter (kiosk compositor + regreet). The Hyprland-based
+# greeter is retired: a compositor upgrade must never affect the login path.
 Requires:       cage
 %{?systemd_requires}
 # Third-party repos (RPM Fusion / pkgs.tailscale.com) — see the header note.
@@ -73,7 +73,7 @@ install -Dpm0644 dist/game-mode.tmpfiles %{buildroot}%{_tmpfilesdir}/game-mode.c
 install -d -m0700 %{buildroot}%{_sharedstatedir}/access-gate
 
 # greetd payload: templates rendered into /etc/greetd by `game-mode setup`
-for f in config_default.toml game_mode_login.toml hypr.conf hypr.lua regreet.toml environments bg.png scripts/greeter-launcher.sh; do
+for f in config_default.toml game_mode_login.toml regreet.toml environments bg.png; do
     install -Dpm0644 "greetd/$f" "%{buildroot}%{_datadir}/game-mode/greetd/$f"
 done
 install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/sudoers/greeter-greetd
@@ -115,6 +115,11 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_datadir}/game-mode/
 
 %changelog
+* Tue Jul 14 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.4-1
+- Retire the Hyprland greeter: cage + regreet only. Drops greeter-launcher.sh,
+  hypr.conf/hypr.lua, greeter-hint-sync, and the greeter config verification;
+  the login path no longer depends on any compositor upgrade.
+
 * Tue Jul 14 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.3-1
 - Ship the launcher-based greeter chain: greeter-launcher.sh + hypr.lua in
   the greetd payload, uwsm-start-hyprland as /usr/bin/start-hyprland,
