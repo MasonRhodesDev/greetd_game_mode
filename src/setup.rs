@@ -39,9 +39,13 @@ const ETC_DIR: &str = "/etc/game-mode";
 const APPROVAL_ENV: &str = "/etc/game-mode/approval.env";
 
 /// Files copied verbatim from /usr/share/game-mode/greetd to /etc/greetd.
-const STATIC_FILES: &[&str] = &["hypr.conf", "regreet.toml", "bg.png", "environments"];
+const STATIC_FILES: &[&str] = &["hypr.conf", "hypr.lua", "regreet.toml", "bg.png", "environments"];
 /// Files rendered ({{vt}}, {{games_user}}) into /etc/greetd.
 const TEMPLATE_FILES: &[&str] = &["config_default.toml", "game_mode_login.toml"];
+/// Executable payload deployed into /etc/greetd/scripts/ — config_default.toml
+/// launches the greeter through greeter-launcher.sh (Hyprland preferred, cage
+/// fallback), so setup without it bricks the greeter.
+const SCRIPT_FILES: &[&str] = &["greeter-launcher.sh"];
 
 pub fn run() -> Result<()> {
     if unsafe { libc::geteuid() } != 0 {
@@ -198,6 +202,16 @@ fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {
             .replace("{{games_user}}", games_user);
         let dst = greetd_dir.join(name);
         fs::write(&dst, text).with_context(|| format!("failed to write {}", dst.display()))?;
+    }
+    let scripts_dir = greetd_dir.join("scripts");
+    fs::create_dir_all(&scripts_dir)
+        .with_context(|| format!("failed to create {}", scripts_dir.display()))?;
+    for name in SCRIPT_FILES {
+        let src = Path::new(SHARE_GREETD).join("scripts").join(name);
+        let dst = scripts_dir.join(name);
+        fs::copy(&src, &dst)
+            .with_context(|| format!("failed to copy {} -> {}", src.display(), dst.display()))?;
+        fs::set_permissions(&dst, fs::Permissions::from_mode(0o755))?;
     }
     println!("Deployed greetd configs to {}", greetd_dir.display());
     Ok(())

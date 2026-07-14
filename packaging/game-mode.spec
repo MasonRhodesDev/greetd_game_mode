@@ -12,7 +12,7 @@
 %bcond_without check
 
 Name:           game-mode
-Version:        0.1.2
+Version:        0.1.3
 Release:        1%{?dist}
 Summary:        Console-style greetd game mode with gamepad entry and passkey approval
 License:        MIT
@@ -27,6 +27,9 @@ BuildRequires:  systemd-devel
 BuildRequires:  openssl-devel
 Requires:       greetd
 Requires:       gamescope
+# cage is the greeter-launcher fallback compositor — the safety net when the
+# (custom-built) Hyprland breaks; regreet is source-built on Fedora, not required here.
+Requires:       cage
 %{?systemd_requires}
 # Third-party repos (RPM Fusion / pkgs.tailscale.com) — see the header note.
 Recommends:     steam
@@ -56,6 +59,8 @@ installs files only; host provisioning is `sudo game-mode setup`.
 (cd verifier && %cargo_install)
 
 # Session helper scripts (referenced by the greetd session configs)
+# uwsm-start-hyprland ships as the /usr/bin/start-hyprland the greeter launcher execs
+install -Dpm0755 greetd/scripts/uwsm-start-hyprland %{buildroot}%{_bindir}/start-hyprland
 install -Dpm0755 greetd/scripts/game-mode-wrapper.sh %{buildroot}%{_bindir}/game-mode-wrapper
 install -Dpm0755 greetd/scripts/game-mode-discord %{buildroot}%{_bindir}/game-mode-discord
 install -Dpm0755 greetd/scripts/game-mode-overlay %{buildroot}%{_bindir}/game-mode-overlay
@@ -68,7 +73,7 @@ install -Dpm0644 dist/game-mode.tmpfiles %{buildroot}%{_tmpfilesdir}/game-mode.c
 install -d -m0700 %{buildroot}%{_sharedstatedir}/access-gate
 
 # greetd payload: templates rendered into /etc/greetd by `game-mode setup`
-for f in config_default.toml game_mode_login.toml hypr.conf regreet.toml environments bg.png; do
+for f in config_default.toml game_mode_login.toml hypr.conf hypr.lua regreet.toml environments bg.png scripts/greeter-launcher.sh; do
     install -Dpm0644 "greetd/$f" "%{buildroot}%{_datadir}/game-mode/greetd/$f"
 done
 install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/sudoers/greeter-greetd
@@ -97,6 +102,7 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_bindir}/game-mode-watchdog
 %{_bindir}/game-mode-steam-shortcut
 %{_bindir}/access-gate-verifier
+%{_bindir}/start-hyprland
 %{_bindir}/game-mode-wrapper
 %{_bindir}/game-mode-discord
 %{_bindir}/game-mode-overlay
@@ -109,6 +115,11 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_datadir}/game-mode/
 
 %changelog
+* Tue Jul 14 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.3-1
+- Ship the launcher-based greeter chain: greeter-launcher.sh + hypr.lua in
+  the greetd payload, uwsm-start-hyprland as /usr/bin/start-hyprland,
+  Requires cage (the fallback compositor)
+
 * Tue Jul 14 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.2-1
 - setup: run greeter config verification as the greeter user with a
   throwaway XDG_RUNTIME_DIR (Hyprland refuses root; verify aborts unset)

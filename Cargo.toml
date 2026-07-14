@@ -3,7 +3,7 @@ members = ["verifier"]
 
 [package]
 name = "game_mode"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = ["Mason Rhodes <mrhodesdev@gmail.com>"]
 description = "A greetd background service for handling gamepad input"
