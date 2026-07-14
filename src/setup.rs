@@ -208,16 +208,33 @@ fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {
 /// greeter). Hard failure, same as the old install.sh.
 fn verify_hypr_config(cfg: &Config) -> Result<()> {
     let hypr_conf = cfg.get_greetd_dir().join("hypr.conf");
-    let out = match Command::new("hyprland")
-        .args(["--verify-config", "--config", hypr_conf.to_str().unwrap()])
-        .output()
-    {
-        Ok(out) => out,
-        Err(_) => {
-            println!("WARN: hyprland not found; skipping greeter config verification");
-            return Ok(());
-        }
-    };
+    // Hyprland refuses to launch as root (setup runs as root), and
+    // --verify-config aborts before parsing when XDG_RUNTIME_DIR is unset —
+    // run the check as the greeter user (the account that runs it for real)
+    // with a throwaway world-writable runtime dir.
+    if Command::new("hyprland").arg("-h").output().is_err() {
+        println!("WARN: hyprland not found; skipping greeter config verification");
+        return Ok(());
+    }
+    let runtime_dir =
+        std::env::temp_dir().join(format!("game-mode-verify-{}", std::process::id()));
+    fs::create_dir_all(&runtime_dir)
+        .with_context(|| format!("failed to create {}", runtime_dir.display()))?;
+    fs::set_permissions(&runtime_dir, fs::Permissions::from_mode(0o777))?;
+    let out = Command::new("runuser")
+        .args([
+            "-u",
+            "greeter",
+            "--",
+            "hyprland",
+            "--verify-config",
+            "--config",
+            hypr_conf.to_str().unwrap(),
+        ])
+        .env("XDG_RUNTIME_DIR", &runtime_dir)
+        .output();
+    let _ = fs::remove_dir_all(&runtime_dir);
+    let out = out.context("failed to run hyprland config verification as greeter")?;
     let text = format!(
         "{}{}",
         String::from_utf8_lossy(&out.stdout),

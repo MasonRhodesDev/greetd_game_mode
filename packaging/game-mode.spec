@@ -12,7 +12,7 @@
 %bcond_without check
 
 Name:           game-mode
-Version:        0.1.1
+Version:        0.1.2
 Release:        1%{?dist}
 Summary:        Console-style greetd game mode with gamepad entry and passkey approval
 License:        MIT
@@ -109,6 +109,10 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_datadir}/game-mode/
 
 %changelog
+* Tue Jul 14 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.2-1
+- setup: run greeter config verification as the greeter user with a
+  throwaway XDG_RUNTIME_DIR (Hyprland refuses root; verify aborts unset)
+
 * Fri Jul 03 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.1-1
 - Fix first-run CI gates (see git log)
 
