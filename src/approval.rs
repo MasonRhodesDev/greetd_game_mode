@@ -4,14 +4,13 @@
 //! blocking request/response semantics: write one request line, the verifier
 //! answers `{"id":..}` immediately (the phone has been pushed) and
 //! `{"status":..}` once the phone decides — no polling, no TCP. Progress is
-//! shown on the greeter via hyprctl banners. Fail-closed: every error path
-//! keeps us at the greeter.
+//! logged (the cage greeter has no banner channel). Fail-closed: every error
+//! path keeps us at the greeter.
 
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
-use std::process::Command;
 use std::time::Duration;
 
 use serde_json::Value;
@@ -51,27 +50,11 @@ fn load_cfg() -> Cfg {
     }
 }
 
-/// Best-effort on-screen banner on the greeter's Hyprland instance.
-/// Icons: 0 warning, 1 info, 3 error, 5 ok.
-fn notify(icon: u8, ms: u64, msg: &str) {
-    let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
-        .unwrap_or_else(|_| format!("/run/user/{}", unsafe { libc::getuid() }));
-    let Ok(entries) = fs::read_dir(format!("{runtime_dir}/hypr")) else {
-        return;
-    };
-    // newest instance dir = the running compositor
-    let newest = entries
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().is_dir())
-        .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok());
-    let Some(sig) = newest.map(|e| e.file_name()) else {
-        return;
-    };
-    let _ = Command::new("hyprctl")
-        .env("XDG_RUNTIME_DIR", &runtime_dir)
-        .env("HYPRLAND_INSTANCE_SIGNATURE", &sig)
-        .args(["notify", &icon.to_string(), &ms.to_string(), "0", msg])
-        .output();
+/// Approval progress feedback. The cage/regreet greeter has no banner
+/// channel (the retired Hyprland greeter took hyprctl notify), so this is
+/// log-only; the call sites stay so a future greeter can surface them again.
+fn notify(_icon: u8, _ms: u64, msg: &str) {
+    info!("greeter: {msg}");
 }
 
 fn read_json_line(reader: &mut BufReader<UnixStream>) -> Option<Value> {

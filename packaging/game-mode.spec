@@ -30,6 +30,7 @@ Requires:       gamescope
 # cage runs the greeter (kiosk compositor + regreet). The Hyprland-based
 # greeter is retired: a compositor upgrade must never affect the login path.
 Requires:       cage
+Requires:       regreet
 %{?systemd_requires}
 # Third-party repos (RPM Fusion / pkgs.tailscale.com) — see the header note.
 Recommends:     steam

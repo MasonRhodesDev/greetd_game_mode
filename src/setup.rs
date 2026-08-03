@@ -179,7 +179,7 @@ fn setup_greetd_dir(cfg: &Config) -> Result<()> {
 }
 
 /// Copy the static greeter payload and render the templated greetd configs
-/// into /etc/greetd. greetd (and regreet/Hyprland) read these files directly,
+/// into /etc/greetd. greetd (and regreet) read these files directly,
 /// so they must exist with concrete values — everything else reads
 /// /etc/game-mode/config.toml at runtime instead.
 fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {

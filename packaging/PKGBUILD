@@ -14,7 +14,7 @@ options=(!lto)  # ring's C objects become GCC LTO bitcode that ld.lld cannot rea
 url="https://github.com/MasonRhodesDev/greetd_game_mode"
 license=('MIT')
 install="$pkgname.install"
-depends=('greetd' 'gamescope')
+depends=('greetd' 'gamescope' 'cage' 'greetd-regreet')
 makedepends=('cargo' 'systemd' 'openssl')
 optdepends=(
   'discord: in-session voice chat (launched from Big Picture)'

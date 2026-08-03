@@ -33,7 +33,7 @@ sequenceDiagram
     Daemon->>Verifier: one JSON request line on /run/access-gate/ctrl.sock<br/>(unix socket, 0660 access-gate:greeter)
     Verifier-->>Daemon: {"id"} reply, immediate
     Verifier->>Phone: Web Push "Enter game mode?" (Urgency: high)
-    Daemon->>Daemon: hyprctl notify banner "Approval sent to your phone…"
+    Daemon->>Daemon: log "Approval sent to your phone…"
     Phone->>Verifier: tap notification, approve page auto-fires the passkey prompt
     Phone->>Verifier: WebAuthn assertion (user verification required)
     Verifier-->>Daemon: verify, then {"status"} line on the same socket (no polling)
@@ -58,14 +58,14 @@ Security model:
   via `tailscale serve` (WebAuthn requires a real TLS origin; MagicDNS
   domains are on the Public Suffix List, so the FQDN is a valid RP ID).
 - Deny, timeout, verifier down, daemon errors: all stay at the greeter
-  (fail-closed). Every outcome shows a banner on the greeter via
-  `hyprctl notify`.
+  (fail-closed). Every outcome is logged by the daemon (the cage greeter
+  has no on-screen banner channel).
 
 Components on disk after install:
 
 | Path | What |
 |---|---|
-| `/usr/bin/game-mode` | daemon binary (incl. the approval client, greeter banners, and the `setup` subcommand) |
+| `/usr/bin/game-mode` | daemon binary (incl. the approval client and the `setup` subcommand) |
 | `/usr/bin/game-mode-wrapper` | game session entrypoint (bwrap home mask → Steam Big Picture) |
 | `/usr/bin/steamos-session-select` | Steam "Switch to Desktop" hook (logs to `/tmp/steamos-session-select.log`) |
 | `/usr/bin/access-gate-verifier` | verifier (Rust: webauthn-rs + web-push, `verifier/`) |
@@ -162,7 +162,8 @@ keeps running, the greeter just respawns on its VT.
 ## Usage
 
 1. At the greeter, press the **Guide** button.
-2. The greeter shows "Approval sent to your phone"; the phone buzzes.
+2. The phone buzzes with the approval push (the greeter itself shows no
+   banner; progress is in the daemon log).
 3. Tap the notification → fingerprint → Steam Big Picture starts (HDR
    enabled in gamescope; the greeter forces the display back to SDR
    afterwards).
