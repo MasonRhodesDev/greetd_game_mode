@@ -22,6 +22,7 @@ const DEFAULT_SOCKET: &str = "/run/access-gate/ctrl.sock";
 struct Cfg {
     socket: String,
     timeout_secs: u64,
+    disabled: bool,
 }
 
 /// AG_* settings: process environment wins (systemd EnvironmentFile), with
@@ -47,6 +48,9 @@ fn load_cfg() -> Cfg {
     Cfg {
         socket: get("AG_CTRL_SOCKET").unwrap_or_else(|| DEFAULT_SOCKET.into()),
         timeout_secs: get("AG_TIMEOUT").and_then(|v| v.parse().ok()).unwrap_or(90),
+        disabled: get("AG_DISABLED")
+            .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
+            .unwrap_or(false),
     }
 }
 
@@ -67,9 +71,17 @@ fn read_json_line(reader: &mut BufReader<UnixStream>) -> Option<Value> {
 /// only on an approved decision; deny/timeout/verifier-down all return false
 /// (fail-closed: stay at the greeter).
 pub fn require_approval() -> bool {
-    info!("requesting phone approval to enter game mode...");
     let cfg = load_cfg();
 
+    // Explicit opt-out (AG_DISABLED=1 in approval.env): skip the phone push
+    // entirely. This is the ONLY path that grants entry without the phone —
+    // every failure below still refuses (fail-closed).
+    if cfg.disabled {
+        warn!("approval gate DISABLED (AG_DISABLED) — entering game mode without phone approval");
+        return true;
+    }
+
+    info!("requesting phone approval to enter game mode...");
     let Ok(mut stream) = UnixStream::connect(&cfg.socket) else {
         warn!(
             "verifier socket {} unreachable; refusing game-mode entry",

@@ -45,6 +45,12 @@ sequenceDiagram
 
 Test the gate without a gamepad: `sudo -u greeter game-mode --test-approval`
 
+To disable the gate temporarily, set `AG_DISABLED=1` in
+`/etc/game-mode/approval.env` and restart `game-mode.service` — the Guide
+button then enters game mode directly, no push, no phone. Remove the line
+(and restart) to re-arm. This opt-out is the only way past the gate; every
+error path still fails closed.
+
 Security model:
 
 - **Trust is the single enrolled passkey** (phone secure element + biometric).
@@ -72,7 +78,7 @@ Components on disk after install:
 | `/usr/share/game-mode/greetd/` | greetd config templates, rendered into `/etc/greetd` by `game-mode setup` |
 | `/etc/game-mode/config.toml` | runtime config (VT, session user/group, game library dir) — written by `game-mode setup` |
 | `/run/access-gate/ctrl.sock` | control socket (created by the verifier at start) |
-| `/etc/game-mode/approval.env` | verifier + daemon config (RP ID, socket, timeout) |
+| `/etc/game-mode/approval.env` | verifier + daemon config (RP ID, socket, timeout, `AG_DISABLED` opt-out) |
 | `/var/lib/access-gate/` | enrolled passkey, push subscription, VAPID key (system user `access-gate`) |
 | `/etc/greetd/` | greeter + game session configs (rendered/deployed by `game-mode setup`) |
 | `/etc/sudoers.d/greeter-greetd` | exact-match grants: restart greetd, fgconsole, rm the greetd runfile |
