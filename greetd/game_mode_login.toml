@@ -13,7 +13,7 @@ vt = 1
 # greetd runs [initial_session] exactly once when it starts, so Steam Big
 # Picture launches immediately (autologin as the games user). When the user
 # exits Big Picture (power menu -> Exit), greetd falls through to
-# [default_session] -- the regreet login greeter -- so *exiting Steam logs you
+# [default_session] -- the vigil login greeter -- so *exiting Steam logs you
 # out* to the login screen instead of re-looping straight back into Big
 # Picture. From that greeter the Guide button takes you back into game mode.
 
@@ -28,7 +28,7 @@ command = "/usr/bin/gamescope -e --hdr-enabled --hdr-itm-enabled --hide-cursor-d
 user = "mason"
 
 [default_session]
-# regreet GTK4 greeter under Hyprland, identical to config_default.toml. Reached
+# vigil greeter (compositor-less, bare KMS), identical to config_default.toml. Reached
 # when Steam Big Picture exits, i.e. this is the "logged out" landing screen.
-command = "/usr/bin/cage -s -m last -d -- /usr/bin/regreet"
+command = "/usr/bin/vigil --background /etc/greetd/bg.png --bg-mode fill"
 user = "greeter"

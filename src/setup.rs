@@ -39,7 +39,7 @@ const ETC_DIR: &str = "/etc/game-mode";
 const APPROVAL_ENV: &str = "/etc/game-mode/approval.env";
 
 /// Files copied verbatim from /usr/share/game-mode/greetd to /etc/greetd.
-const STATIC_FILES: &[&str] = &["regreet.toml", "bg.png", "environments"];
+const STATIC_FILES: &[&str] = &["bg.png", "environments"];
 /// Files rendered ({{vt}}, {{games_user}}) into /etc/greetd.
 const TEMPLATE_FILES: &[&str] = &["config_default.toml", "game_mode_login.toml"];
 
@@ -179,7 +179,7 @@ fn setup_greetd_dir(cfg: &Config) -> Result<()> {
 }
 
 /// Copy the static greeter payload and render the templated greetd configs
-/// into /etc/greetd. greetd (and regreet) read these files directly,
+/// into /etc/greetd. greetd (and the greeter) read these files directly,
 /// so they must exist with concrete values — everything else reads
 /// /etc/game-mode/config.toml at runtime instead.
 fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {
@@ -203,14 +203,13 @@ fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {
     Ok(())
 }
 
-/// The greeter is cage + regreet only — a compositor upgrade must never be
-/// able to break the login path, so there is no Hyprland greeter (and no
-/// greeter config verification) anymore. Sanity-check the binaries exist.
+/// The greeter is vigil (compositor-less, on bare KMS) — a compositor
+/// upgrade must never be able to break the login path, and since 2026-08
+/// no compositor is involved at all. Sanity-check the binary exists.
 fn verify_greeter_binaries() -> Result<()> {
-    for bin in ["/usr/bin/cage", "/usr/bin/regreet"] {
-        if !Path::new(bin).exists() {
-            bail!("{bin} not found — the greeter cannot start without it");
-        }
+    let bin = "/usr/bin/vigil";
+    if !Path::new(bin).exists() {
+        bail!("{bin} not found — the greeter cannot start without it (install the vigil package)");
     }
     Ok(())
 }
