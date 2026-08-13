@@ -1,10 +1,8 @@
 mod approval;
-mod config;
-mod game_mode_switch;
-mod paths;
 mod setup;
 
-use crate::config::Config;
+use game_mode::{config, game_mode_switch};
+use game_mode::config::Config;
 use anyhow::Result;
 use gilrs::{Button, Event, Gilrs};
 use serde_json::Value;
@@ -15,10 +13,10 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 fn setup_logging() -> Result<()> {
-    let config = match crate::config::Config::load() {
+    let config = match Config::load() {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Failed to load config: {}", e);
@@ -70,50 +68,6 @@ fn setup_logging() -> Result<()> {
     }
 
     Ok(())
-}
-
-/// IDs of logind sessions currently on the given TTY (any class, any state).
-fn list_tty_session_ids(tty: &str) -> Vec<String> {
-    Command::new("loginctl")
-        .arg("-j")
-        .arg("list-sessions")
-        .output()
-        .ok()
-        .and_then(|o| serde_json::from_slice::<Vec<Value>>(&o.stdout).ok())
-        .map(|sessions: Vec<Value>| {
-            sessions
-                .iter()
-                .filter(|s| s["tty"].as_str().unwrap_or("") == tty)
-                .filter_map(|s| s["session"].as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-/// Block until greetd has started a session on the target VT that did not
-/// exist when we were called, i.e. it has read config.toml and acted on it.
-/// Sessions from before the greetd restart can linger in logind (state
-/// "closing") and must not count — matching any session raced the config
-/// read and reverted an approved game-mode entry back to the greeter.
-fn wait_for_new_session_on_tty(tty: &str, existing: &[String], timeout: Duration) {
-    let start = Instant::now();
-    while start.elapsed() < timeout {
-        if list_tty_session_ids(tty)
-            .iter()
-            .any(|id| !existing.contains(id))
-        {
-            debug!(
-                "New session present on {}; greetd has consumed its config",
-                tty
-            );
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(250));
-    }
-    warn!(
-        "No new session appeared on {} within {:?}; resetting config anyway",
-        tty, timeout
-    );
 }
 
 /// State of a logind session ("active", "online", "closing", ...). Sessions in
@@ -206,6 +160,42 @@ fn get_active_tty() -> Result<String> {
     Ok(tty)
 }
 
+/// The approved-entry countdown: announce through the greeter's banner
+/// channel and watch the gamepad for a cancel. Returns whether to proceed.
+///
+/// The banner is vigil's `[greeter] banner_file` surface — best-effort; a
+/// greeter without it configured just shows no text, and the countdown still
+/// runs. Cancel is the East button (B on an Xbox pad): keyboard Esc would
+/// need the greeter's cooperation, and game mode deliberately has no vigil
+/// coupling beyond this write-only banner file.
+fn entry_countdown(gilrs: &mut Gilrs, config: &Config) -> bool {
+    const SECONDS: u64 = 5;
+    let banner = &config.greeter.banner_file;
+    let write_banner = |text: &str| {
+        if let Err(e) = fs::write(banner, text) {
+            debug!("banner write ({banner}): {e}");
+        }
+    };
+    let start = Instant::now();
+    let mut proceed = true;
+    'outer: for remaining in (1..=SECONDS).rev() {
+        write_banner(&format!(
+            "Entering game mode in {remaining}s — press B to cancel"
+        ));
+        while start.elapsed() < Duration::from_secs(SECONDS - remaining + 1) {
+            while let Some(Event { event, .. }) = gilrs.next_event() {
+                if let gilrs::EventType::ButtonPressed(Button::East, _) = event {
+                    proceed = false;
+                    break 'outer;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+    write_banner(if proceed { "Entering game mode…" } else { "" });
+    proceed
+}
+
 fn run_game_mode() -> Result<()> {
     // Logging is already initialized in main()
     info!("Starting game mode service");
@@ -295,9 +285,14 @@ fn run_game_mode() -> Result<()> {
                 }
                 gilrs::EventType::ButtonReleased(Button::Mode, _) => {
                     menu_pressed.store(false, Ordering::SeqCst);
-                    // Gate entry on a phone passkey approval (fail-closed).
+                    // Gate entry on a phone passkey approval (fail-closed),
+                    // then give the couch a short window to bail out.
                     if approval::require_approval() {
-                        game_mode_switch::switch_to_game_mode()?;
+                        if entry_countdown(&mut gilrs, &config) {
+                            game_mode_switch::switch_to_game_mode()?;
+                        } else {
+                            info!("game-mode entry cancelled during countdown");
+                        }
                     } else {
                         info!("game-mode entry not approved; staying at greeter");
                     }
@@ -337,27 +332,20 @@ fn main() -> Result<()> {
 
     info!("Game mode service starting");
 
-    // Reset to desktop mode on startup so game mode is one-shot: the next
-    // greetd restart lands on the greeter. Skip when config.toml already
-    // points at the default (normal boot) — and when it points at the game
-    // config, we are restarting together with greetd (BindsTo) right after
-    // an approved entry, so wait until greetd has actually consumed the
-    // config (a session that didn't exist at our startup appears) before
-    // reverting the symlink.
-    let config = Config::load()?;
-    let needs_reset = fs::read_link(config.get_config_path())
-        .map(|target| target != config.get_default_config_path())
-        .unwrap_or(true);
-    if needs_reset {
-        let tty = format!("tty{}", config.terminal.vt);
-        let existing = list_tty_session_ids(&tty);
-        wait_for_new_session_on_tty(&tty, &existing, Duration::from_secs(15));
-        if let Err(e) = game_mode_switch::switch_to_desktop_mode() {
-            eprintln!("Failed to reset to desktop mode: {}", e);
-            return Err(e);
+    // Housekeeping: a *stale* armed flag (crash between arming and the
+    // greetd restart) is already inert — the dispatcher checks freshness —
+    // but remove it so its presence can't confuse anyone. A FRESH flag means
+    // we are restarting together with greetd (BindsTo) right after an
+    // approved entry and the dispatcher may not have consumed it yet: leave
+    // it alone.
+    {
+        use game_mode_switch::is_armed;
+        use std::path::Path;
+        let armed = Path::new(config::ARMED_FILE);
+        if armed.exists() && !is_armed(armed, config::ARMED_MAX_AGE_SECS) {
+            debug!("removing stale armed flag");
+            game_mode_switch::disarm();
         }
-    } else {
-        debug!("config.toml already points at the default config; no reset needed");
     }
 
     if let Err(e) = run_game_mode() {

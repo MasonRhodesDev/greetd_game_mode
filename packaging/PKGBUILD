@@ -14,7 +14,7 @@ options=(!lto)  # ring's C objects become GCC LTO bitcode that ld.lld cannot rea
 url="https://github.com/MasonRhodesDev/greetd_game_mode"
 license=('MIT')
 install="$pkgname.install"
-depends=('greetd' 'gamescope' 'cage' 'greetd-regreet')
+depends=('greetd' 'gamescope' 'vigil')
 makedepends=('cargo' 'systemd' 'openssl')
 optdepends=(
   'discord: in-session voice chat (launched from Big Picture)'
@@ -52,6 +52,7 @@ package() {
   install -Dm755 target/release/game-mode-steam-config "$pkgdir/usr/bin/game-mode-steam-config"
   install -Dm755 target/release/game-mode-watchdog "$pkgdir/usr/bin/game-mode-watchdog"
   install -Dm755 target/release/game-mode-steam-shortcut "$pkgdir/usr/bin/game-mode-steam-shortcut"
+  install -Dm755 target/release/game-mode-dispatch "$pkgdir/usr/bin/game-mode-dispatch"
   install -Dm755 target/release/access-gate-verifier "$pkgdir/usr/bin/access-gate-verifier"
 
   # Session helper scripts (referenced by the greetd session configs)
@@ -67,7 +68,7 @@ package() {
   install -Dm644 dist/game-mode.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/game-mode.conf"
 
   # greetd payload: templates rendered into /etc/greetd by `game-mode setup`
-  for f in config_default.toml game_mode_login.toml regreet.toml environments bg.png; do
+  for f in config.toml bg.png; do
     install -Dm644 "greetd/$f" "$pkgdir/usr/share/game-mode/greetd/$f"
   done
   install -Dm644 dist/sudoers-greeter-greetd "$pkgdir/usr/share/game-mode/sudoers/greeter-greetd"

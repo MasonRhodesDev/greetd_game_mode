@@ -9,9 +9,9 @@
 //!   - applies the packaged sysusers/tmpfiles snippets (access-gate user,
 //!     /var/lib/access-gate)
 //!   - sets up /etc/greetd group ownership + logs dir
-//!   - renders the shipped greetd templates from /usr/share/game-mode/greetd
-//!     into /etc/greetd (greetd itself needs concrete values on disk) and
-//!     swaps the config.toml symlink to the greeter config
+//!   - renders the one static greetd config from /usr/share/game-mode/greetd
+//!     into /etc/greetd/config.toml (greetd needs concrete values on disk);
+//!     mode switching never rewrites it (vigil#29)
 //!   - renders and installs the sudoers grant for the greeter user
 //!   - checks tailscale and writes /etc/game-mode/approval.env (the WebAuthn
 //!     verifier's RP ID / origin come from the tailnet FQDN)
@@ -29,8 +29,8 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::Command;
 
-use crate::config::{self, Config};
-use crate::game_mode_switch;
+use game_mode::config::{self, Config};
+use game_mode::game_mode_switch;
 
 const SHARE_GREETD: &str = "/usr/share/game-mode/greetd";
 const SUDOERS_TEMPLATE: &str = "/usr/share/game-mode/sudoers/greeter-greetd";
@@ -39,9 +39,10 @@ const ETC_DIR: &str = "/etc/game-mode";
 const APPROVAL_ENV: &str = "/etc/game-mode/approval.env";
 
 /// Files copied verbatim from /usr/share/game-mode/greetd to /etc/greetd.
-const STATIC_FILES: &[&str] = &["bg.png", "environments"];
-/// Files rendered ({{vt}}, {{games_user}}) into /etc/greetd.
-const TEMPLATE_FILES: &[&str] = &["config_default.toml", "game_mode_login.toml"];
+const STATIC_FILES: &[&str] = &["bg.png"];
+/// The single static greetd config, rendered ({{vt}}, {{games_user}}) into
+/// /etc/greetd/config.toml. Mode switching never rewrites it (vigil#29).
+const TEMPLATE_FILES: &[&str] = &["config.toml"];
 
 pub fn run() -> Result<()> {
     if unsafe { libc::geteuid() } != 0 {
@@ -83,9 +84,8 @@ pub fn run() -> Result<()> {
     deploy_greetd_files(&cfg, vt, &user)?;
     verify_greeter_binaries()?;
     install_sudoers(&cfg.permissions.greeter_user)?;
-    // Land on the greeter config (atomic symlink swap, same code path the
-    // daemon uses to reset after a game session).
-    game_mode_switch::switch_to_desktop_mode()?;
+    // No config to swap anymore — just make sure no armed flag lingers.
+    game_mode_switch::disarm();
     tailscale_approval_env()?;
     enable_services(interactive)?;
     print_next_steps();
@@ -105,11 +105,18 @@ fn run_checked(program: &str, args: &[&str]) -> Result<()> {
 
 fn write_runtime_config(vt: u32, user: &str, group: &str, dir: &str) -> Result<()> {
     fs::create_dir_all(ETC_DIR)?;
+    let command = toml::Value::Array(
+        config::default_game_command()
+            .into_iter()
+            .map(toml::Value::String)
+            .collect(),
+    );
     let text = format!(
         "# game-mode runtime configuration — written by `game-mode setup`.\n\
-         # Read by the game-mode daemon and the game-mode-wrapper session script.\n\
-         # Re-run `sudo game-mode setup` after editing (the greetd session\n\
-         # configs under /etc/greetd are rendered from these values).\n\
+         # Read by the game-mode daemon, game-mode-dispatch, and the\n\
+         # game-mode-wrapper session script. Re-run `sudo game-mode setup`\n\
+         # after changing user/group/vt (identities and /etc/greetd are\n\
+         # provisioned from these values); `command` is read live.\n\
          \n\
          [terminal]\n\
          vt = {vt}\n\
@@ -117,7 +124,14 @@ fn write_runtime_config(vt: u32, user: &str, group: &str, dir: &str) -> Result<(
          [session]\n\
          user = \"{user}\"\n\
          group = \"{group}\"\n\
-         dir = \"{dir}\"\n"
+         dir = \"{dir}\"\n\
+         # argv game-mode-dispatch execs for an armed entry.\n\
+         command = {command}\n\
+         \n\
+         [greeter]\n\
+         # vigil's banner channel; the entry countdown is announced here.\n\
+         banner_file = \"{banner}\"\n",
+        banner = config::BANNER_FILE,
     );
     fs::write(config::CONFIG_TOML, text)
         .with_context(|| format!("failed to write {}", config::CONFIG_TOML))?;
@@ -178,10 +192,9 @@ fn setup_greetd_dir(cfg: &Config) -> Result<()> {
     Ok(())
 }
 
-/// Copy the static greeter payload and render the templated greetd configs
-/// into /etc/greetd. greetd (and the greeter) read these files directly,
-/// so they must exist with concrete values — everything else reads
-/// /etc/game-mode/config.toml at runtime instead.
+/// Copy the static greeter payload and render the one greetd config into
+/// /etc/greetd. greetd reads it directly, so it must exist with concrete
+/// values — everything else reads /etc/game-mode/config.toml at runtime.
 fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {
     let greetd_dir = cfg.get_greetd_dir();
     for name in STATIC_FILES {
@@ -196,20 +209,33 @@ fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {
             .with_context(|| format!("failed to read template {}", src.display()))?
             .replace("{{vt}}", &vt.to_string())
             .replace("{{games_user}}", games_user);
+        // Write-then-rename: config.toml is a symlink on hosts provisioned by
+        // the old symlink-swapping setup, and writing through it would
+        // clobber whatever it points at instead of replacing it.
         let dst = greetd_dir.join(name);
-        fs::write(&dst, text).with_context(|| format!("failed to write {}", dst.display()))?;
+        let tmp = greetd_dir.join(format!("{name}.new"));
+        fs::write(&tmp, text).with_context(|| format!("failed to write {}", tmp.display()))?;
+        fs::rename(&tmp, &dst)
+            .with_context(|| format!("failed to install {}", dst.display()))?;
+    }
+    // Legacy artifacts of the symlink-swapping era; stale copies would only
+    // mislead. Best-effort.
+    for stale in ["config_default.toml", "game_mode_login.toml"] {
+        let _ = fs::remove_file(greetd_dir.join(stale));
     }
     println!("Deployed greetd configs to {}", greetd_dir.display());
     Ok(())
 }
 
-/// The greeter is vigil (compositor-less, on bare KMS) — a compositor
-/// upgrade must never be able to break the login path, and since 2026-08
-/// no compositor is involved at all. Sanity-check the binary exists.
+/// Sanity-check the login path's binaries: vigil (the greeter and the
+/// fallback for every session exit), systemd-cat (wraps both greetd session
+/// commands so their stderr reaches the journal), and gamescope (the armed
+/// dispatch path).
 fn verify_greeter_binaries() -> Result<()> {
-    let bin = "/usr/bin/vigil";
-    if !Path::new(bin).exists() {
-        bail!("{bin} not found — the greeter cannot start without it (install the vigil package)");
+    for bin in ["/usr/bin/vigil", "/usr/bin/systemd-cat", "/usr/bin/gamescope"] {
+        if !Path::new(bin).exists() {
+            bail!("{bin} not found — the login path cannot work without it");
+        }
     }
     Ok(())
 }

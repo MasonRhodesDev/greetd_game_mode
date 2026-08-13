@@ -23,6 +23,10 @@ name = "game-mode-steam-config"
 path = "src/bin/steam_config.rs"
 
 [[bin]]
+name = "game-mode-dispatch"
+path = "src/bin/dispatch.rs"
+
+[[bin]]
 name = "game-mode-watchdog"
 path = "src/bin/watchdog.rs"
 

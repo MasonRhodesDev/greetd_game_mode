@@ -8,13 +8,43 @@ use std::path::PathBuf;
 // helpers fall back to these when the file (or a key) is absent.
 pub const CONFIG_TOML: &str = "/etc/game-mode/config.toml";
 pub const GREETD_DIR: &str = "/etc/greetd";
-pub const CONFIG_FILE: &str = "config.toml";
-pub const GAME_MODE_CONFIG: &str = "game_mode_login.toml";
 pub const GREETER_USER: &str = "greeter";
 pub const VT_NUMBER: u32 = 1;
 pub const GAMES_USER: &str = "games";
 pub const GAMES_GROUP: &str = "games";
 pub const GAMES_DIR: &str = "/games";
+
+/// The one-shot arming flag: the daemon writes it just before restarting
+/// greetd, and `game-mode-dispatch` (greetd's permanent `[initial_session]`)
+/// execs the game session only while it is fresh. /run is tmpfs, so a reboot
+/// always disarms.
+pub const ARMED_FILE: &str = "/run/game-mode/armed";
+/// An armed flag older than this is stale (a crash between arming and the
+/// greetd restart) and must not launch a game session.
+pub const ARMED_MAX_AGE_SECS: u64 = 60;
+
+/// Where vigil polls for its status banner (`[greeter] banner_file` in
+/// vigil.toml) — the entry countdown is announced through it. Best-effort:
+/// a greeter without the banner channel just shows no countdown text.
+pub const BANNER_FILE: &str = "/run/vigil/banner";
+
+/// Default game-session argv, matching what `[initial_session]` used to run
+/// directly. `game-mode setup` writes the resolved value into
+/// /etc/game-mode/config.toml where it can be edited.
+pub fn default_game_command() -> Vec<String> {
+    [
+        "/usr/bin/gamescope",
+        "-e",
+        "--hdr-enabled",
+        "--hdr-itm-enabled",
+        "--hide-cursor-delay",
+        "3000",
+        "--",
+        "/usr/bin/game-mode-wrapper",
+    ]
+    .map(str::to_string)
+    .to_vec()
+}
 
 // Default log filter is info; set RUST_LOG (e.g. in game-mode.service) for
 // debug logging at runtime instead of flipping this at build time.
@@ -29,6 +59,8 @@ struct FileConfig {
     terminal: FileTerminal,
     #[serde(default)]
     session: FileSession,
+    #[serde(default)]
+    greeter: FileGreeter,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -41,6 +73,12 @@ struct FileSession {
     user: Option<String>,
     group: Option<String>,
     dir: Option<String>,
+    command: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct FileGreeter {
+    banner_file: Option<String>,
 }
 
 #[derive(Debug)]
@@ -50,6 +88,7 @@ pub struct Config {
     pub permissions: Permissions,
     pub terminal: Terminal,
     pub session: Session,
+    pub greeter: Greeter,
     path_manager: PathManager,
 }
 
@@ -77,13 +116,21 @@ pub struct Terminal {
     pub vt: u32,
 }
 
-/// The identity the game session autologs in as, and the shared game library
-/// directory (bound read-write into the bwrap home mask).
+/// The identity the game session autologs in as, the shared game library
+/// directory (bound read-write into the bwrap home mask), and the argv
+/// `game-mode-dispatch` execs when armed.
 #[derive(Debug)]
 pub struct Session {
     pub user: String,
     pub group: String,
     pub dir: String,
+    pub command: Vec<String>,
+}
+
+/// Greeter integration surfaces (all best-effort).
+#[derive(Debug)]
+pub struct Greeter {
+    pub banner_file: String,
 }
 
 impl Config {
@@ -121,11 +168,18 @@ impl Config {
                     .group
                     .unwrap_or_else(|| GAMES_GROUP.to_string()),
                 dir: file.session.dir.unwrap_or_else(|| GAMES_DIR.to_string()),
+                command: file.session.command.unwrap_or_else(default_game_command),
+            },
+            greeter: Greeter {
+                banner_file: file
+                    .greeter
+                    .banner_file
+                    .unwrap_or_else(|| BANNER_FILE.to_string()),
             },
             // Real root, not "": PathManager joins root + greetd_dir, and an
             // empty root yields a *relative* "etc/greetd" that resolves under
             // the daemon's working directory instead of /etc/greetd.
-            path_manager: PathManager::new("/", GREETD_DIR, CONFIG_FILE, GAME_MODE_CONFIG),
+            path_manager: PathManager::new("/", GREETD_DIR),
         };
 
         Ok(config)
@@ -139,17 +193,6 @@ impl Config {
         self.path_manager.get_greetd_dir()
     }
 
-    pub fn get_config_path(&self) -> PathBuf {
-        self.path_manager.get_config_path()
-    }
-
-    pub fn get_default_config_path(&self) -> PathBuf {
-        self.path_manager.get_default_config_path()
-    }
-
-    pub fn get_game_mode_config_path(&self) -> PathBuf {
-        self.path_manager.get_game_mode_config_path()
-    }
 }
 
 #[cfg(test)]

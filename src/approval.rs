@@ -54,11 +54,16 @@ fn load_cfg() -> Cfg {
     }
 }
 
-/// Approval progress feedback. The cage/regreet greeter has no banner
-/// channel (the retired Hyprland greeter took hyprctl notify), so this is
-/// log-only; the call sites stay so a future greeter can surface them again.
+/// Approval progress feedback, surfaced on the greeter through vigil's
+/// banner channel (best-effort — a greeter without `banner_file` configured
+/// just logs). The icon/duration parameters are relics of the hyprctl-notify
+/// era; vigil's banner is a single persistent line that the next write (or
+/// the entry countdown) replaces.
 fn notify(_icon: u8, _ms: u64, msg: &str) {
     info!("greeter: {msg}");
+    if let Ok(config) = game_mode::config::Config::load() {
+        let _ = std::fs::write(&config.greeter.banner_file, msg);
+    }
 }
 
 fn read_json_line(reader: &mut BufReader<UnixStream>) -> Option<Value> {

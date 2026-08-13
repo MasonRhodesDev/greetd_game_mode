@@ -1,3 +1,9 @@
 # Verifier data dir (enrolled passkey, push subscription). Private to the
 # access-gate user.
 d /var/lib/access-gate 0700 access-gate access-gate -
+
+# One-shot game-mode arming flag. The daemon (greeter user) writes it; the
+# dispatcher (games user) only reads it — its best-effort unlink is expected
+# to fail, and the real disarm is the flag's freshness window plus the
+# daemon's stale-flag cleanup. /run is tmpfs, so a reboot always disarms.
+d /run/game-mode 0755 greeter greeter -

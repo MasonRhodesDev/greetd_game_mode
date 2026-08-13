@@ -14,9 +14,12 @@ Three cooperating pieces:
 2. **Approval verifier** (Rust, `verifier/`) — a WebAuthn relying party +
    Web Push sender. Entering game mode requires a passkey approval from your
    phone; the approval is one notification tap + one biometric.
-3. **greetd config switching** — the daemon symlinks
-   `/etc/greetd/config.toml` between the greeter config and an autologin
-   config that launches gamescope + Steam, then restarts greetd.
+3. **greetd dispatch** — `/etc/greetd/config.toml` is one static file: a
+   permanent `[initial_session]` running `game-mode-dispatch` and a
+   `[default_session]` running the vigil greeter. The daemon arms a one-shot
+   flag in `/run/game-mode` and restarts greetd; the dispatcher execs
+   gamescope + Steam while the flag is fresh and exits to the greeter
+   otherwise. No config is ever rewritten (vigil#29).
 
 ## Approval flow
 
@@ -38,9 +41,9 @@ sequenceDiagram
     Phone->>Verifier: WebAuthn assertion (user verification required)
     Verifier-->>Daemon: verify, then {"status"} line on the same socket (no polling)
     Daemon->>Daemon: blank VT, rm /run/greetd.run
-    Daemon->>Greetd: atomic symlink swap of /etc/greetd/config.toml to the game config,<br/>restart greetd (exact-match sudoers grants)
+    Daemon->>Greetd: 5s cancel countdown (banner + gamepad B), arm /run/game-mode/armed,<br/>rm runfile + restart greetd (exact-match sudoers grants)
     Greetd->>Greetd: [initial_session] launches gamescope + Steam Big Picture (bwrap $HOME mask)
-    Note over Daemon,Greetd: one-shot — the symlink resets after entry,<br/>and exiting Steam returns to the greeter
+    Note over Daemon,Greetd: one-shot — the armed flag is consumed (and self-expires),<br/>and exiting Steam returns to the greeter
 ```
 
 Test the gate without a gamepad: `sudo -u greeter game-mode --test-approval`
@@ -114,10 +117,9 @@ in one, or relax Bitwarden's vault timeout.
 
 - Arch Linux (primary; Fedora best-effort via COPR). `[multilib]` enabled
   (Steam).
-- Packages beyond the hard deps (`greetd`, `gamescope`, `cage`):
-  `greetd-regreet` (the greeter is cage + regreet; desktop sessions still
-  launch Hyprland via the `start-hyprland` watchdog), `steam`, `bubblewrap`,
-  `swaybg`, `tailscale`, `discord`, `discover-overlay` (AUR).
+- Packages beyond the hard deps (`greetd`, `gamescope`, `vigil` — the
+  greeter, from the [mason] repo / COPR solaris765/vigil): `steam`,
+  `bubblewrap`, `swaybg`, `tailscale`, `discord`, `discover-overlay` (AUR).
 - **Tailscale up and logged in** before running setup — the verifier's HTTPS
   origin is the tailnet FQDN.
 - A phone on the tailnet with a passkey provider, and a gamepad with a
@@ -156,11 +158,10 @@ sudo game-mode setup
 
 `game-mode setup` prompts for the game-session user/group/library dir and
 writes `/etc/game-mode/config.toml`, creates the games user, sets up
-`/etc/greetd` permissions, renders and deploys the greetd configs (the
-greeter is cage + regreet — no compositor config to break), installs the
-sudoers grant, checks tailscale + writes the approval env, configures
-`tailscale serve`, and enables the services. It is idempotent — re-run it
-after upgrades or to reconfigure.
+`/etc/greetd` permissions, renders the one static greetd config (vigil
+greeter + game-mode-dispatch), installs the sudoers grant, checks tailscale
++ writes the approval env, configures `tailscale serve`, and enables the
+services. It is idempotent — re-run it after upgrades or to reconfigure.
 
 Note: it offers to restart greetd at the end; an active desktop session
 keeps running, the greeter just respawns on its VT.
@@ -168,17 +169,17 @@ keeps running, the greeter just respawns on its VT.
 ## Usage
 
 1. At the greeter, press the **Guide** button.
-2. The phone buzzes with the approval push (the greeter itself shows no
-   banner; progress is in the daemon log).
-3. Tap the notification → fingerprint → Steam Big Picture starts (HDR
-   enabled in gamescope; the greeter forces the display back to SDR
-   afterwards).
+2. The phone buzzes with the approval push.
+3. Tap the notification → fingerprint → a 5-second countdown shows on the
+   greeter (vigil's banner; press **B** on the pad to cancel) → Steam Big
+   Picture starts (HDR enabled in gamescope).
 4. In Big Picture: power menu → **Switch to Desktop** ends the session and
    returns to the greeter (Steam runs with `-steamos3`, which is what makes
    it invoke the `steamos-session-select` hook).
 
-Game mode is one-shot by design: after the game session starts, the config
-symlink is reset, so any later greetd restart lands on the greeter.
+Game mode is one-shot by design: the armed flag is consumed at dispatch
+(and self-expires after 60s regardless), so any later greetd restart lands
+on the greeter.
 
 ## Filesystem mask
 
@@ -249,8 +250,9 @@ re-sync) without touching running games.
 
 Known gotchas:
 
-- The greeter is deliberately cage + regreet, not Hyprland: a compositor
-  upgrade must never be able to break the login path.
+- The greeter is vigil, which talks straight to DRM/libinput: no
+  compositor sits in the login path at all, so a compositor upgrade cannot
+  break it.
 - **Regular login bounces straight back to the greeter** (uwsm-managed
   sessions): if `/usr/share/wayland-sessions/hyprland.desktop` was hidden to
   de-duplicate the greeter's session list, use `NoDisplay=true` — uwsm

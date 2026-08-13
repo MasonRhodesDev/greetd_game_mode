@@ -1,0 +1,31 @@
+# The one static greetd config — rendered here by `game-mode setup`, never
+# rewritten afterwards. Mode switching happens through /run/game-mode/armed
+# (see game-mode-dispatch), not by editing this file (vigil#29).
+
+[general]
+# Don't source /etc/profile + ~/.profile for the game session: the dispatcher
+# execs absolute paths, and skipping shell init (version-manager shims etc.)
+# gets gamescope on screen faster.
+source_profile = false
+
+[terminal]
+vt = {{vt}}
+
+[initial_session]
+# Runs once per greetd start with no /run/greetd.run present: every boot, and
+# every restart the game-mode daemon performs for an approved entry (it
+# removes the runfile first). The dispatcher execs the game session while the
+# armed flag is fresh and exits 0 otherwise — so a plain boot falls straight
+# through to the greeter below, and exiting Steam lands there too.
+command = "/usr/bin/systemd-cat -t game-mode-dispatch /usr/bin/game-mode-dispatch"
+user = "{{games_user}}"
+
+[default_session]
+# The login screen, and where every exited session lands. systemd-cat gives
+# the greeter's stderr a journal home (greetd discards it otherwise), and
+# the background flags make the render self-contained on hosts with no
+# /etc/greetd/vigil.toml. Note vigil's precedence is CLI > config: drop the
+# flags here if you want vigil.toml's [look]/[output] to control the
+# background instead.
+command = "/usr/bin/systemd-cat -t vigil /usr/bin/vigil --background /etc/greetd/bg.png --bg-mode fill"
+user = "greeter"

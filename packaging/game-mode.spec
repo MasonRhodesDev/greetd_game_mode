@@ -27,10 +27,9 @@ BuildRequires:  systemd-devel
 BuildRequires:  openssl-devel
 Requires:       greetd
 Requires:       gamescope
-# cage runs the greeter (kiosk compositor + regreet). The Hyprland-based
-# greeter is retired: a compositor upgrade must never affect the login path.
-Requires:       cage
-Requires:       regreet
+# vigil is both the greeter and the landing screen for every session exit;
+# the login path has no other compositor in it anymore.
+Requires:       vigil
 %{?systemd_requires}
 # Third-party repos (RPM Fusion / pkgs.tailscale.com) — see the header note.
 Recommends:     steam
@@ -74,7 +73,7 @@ install -Dpm0644 dist/game-mode.tmpfiles %{buildroot}%{_tmpfilesdir}/game-mode.c
 install -d -m0700 %{buildroot}%{_sharedstatedir}/access-gate
 
 # greetd payload: templates rendered into /etc/greetd by `game-mode setup`
-for f in config_default.toml game_mode_login.toml regreet.toml environments bg.png; do
+for f in config.toml bg.png; do
     install -Dpm0644 "greetd/$f" "%{buildroot}%{_datadir}/game-mode/greetd/$f"
 done
 install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/sudoers/greeter-greetd
