@@ -11,3 +11,9 @@ jobs:
   release:
     uses: MasonRhodesDev/packaging-workflows/.github/workflows/release.yml@main
     secrets: inherit
+    with:
+      # vigil (the greeter this package depends on) ships from [mason].
+      extra-repos: |
+        [mason]
+        SigLevel = Optional TrustAll
+        Server = https://masonrhodesdev.github.io/arch-repo/x86_64

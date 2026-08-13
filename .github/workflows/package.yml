@@ -12,6 +12,12 @@ concurrency:
 jobs:
   arch:
     uses: MasonRhodesDev/packaging-workflows/.github/workflows/arch-package.yml@main
+    with:
+      # vigil (the greeter this package depends on) ships from [mason].
+      extra-repos: |
+        [mason]
+        SigLevel = Optional TrustAll
+        Server = https://masonrhodesdev.github.io/arch-repo/x86_64
 
   rpm:
     uses: MasonRhodesDev/packaging-workflows/.github/workflows/rpm-check.yml@main

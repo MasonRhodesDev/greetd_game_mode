@@ -101,6 +101,7 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_bindir}/game-mode-steam-config
 %{_bindir}/game-mode-watchdog
 %{_bindir}/game-mode-steam-shortcut
+%{_bindir}/game-mode-dispatch
 %{_bindir}/access-gate-verifier
 %{_bindir}/start-hyprland
 %{_bindir}/game-mode-wrapper
