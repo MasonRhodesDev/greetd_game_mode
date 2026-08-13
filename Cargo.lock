@@ -687,7 +687,7 @@ dependencies = [
 
 [[package]]
 name = "game_mode"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "ctrlc",

@@ -12,7 +12,7 @@
 %bcond_without check
 
 Name:           game-mode
-Version:        0.1.5
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        Console-style greetd game mode with gamepad entry and passkey approval
 License:        MIT
@@ -115,6 +115,19 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_datadir}/game-mode/
 
 %changelog
+* Wed Aug 13 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.0-1
+- Static greetd config + armed dispatcher: /etc/greetd/config.toml is
+  rendered once and never rewritten; game-mode-dispatch (new binary,
+  permanent [initial_session]) execs the game session while the one-shot
+  /run/game-mode/armed flag is fresh and exits to the vigil greeter
+  otherwise. Deletes the config symlink swapping and the
+  config_default/game_mode_login template pair.
+- 5s entry countdown on the greeter (vigil banner_file) with gamepad-B
+  cancel; approval progress lines surface on the banner too.
+- Game session command moves to /etc/game-mode/config.toml
+  ([session] command); greeter stderr journals via systemd-cat.
+- Requires vigil instead of cage+regreet.
+
 * Tue Jul 14 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.5-1
 - Greeter: cage -m last -d — fullscreen on one output instead of a window
   centered across the multi-monitor span (cage cannot mirror outputs)
