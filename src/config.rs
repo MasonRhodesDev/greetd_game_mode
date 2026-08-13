@@ -192,7 +192,6 @@ impl Config {
     pub fn get_greetd_dir(&self) -> PathBuf {
         self.path_manager.get_greetd_dir()
     }
-
 }
 
 #[cfg(test)]

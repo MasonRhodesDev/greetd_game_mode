@@ -215,8 +215,7 @@ fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {
         let dst = greetd_dir.join(name);
         let tmp = greetd_dir.join(format!("{name}.new"));
         fs::write(&tmp, text).with_context(|| format!("failed to write {}", tmp.display()))?;
-        fs::rename(&tmp, &dst)
-            .with_context(|| format!("failed to install {}", dst.display()))?;
+        fs::rename(&tmp, &dst).with_context(|| format!("failed to install {}", dst.display()))?;
     }
     // Legacy artifacts of the symlink-swapping era; stale copies would only
     // mislead. Best-effort.
@@ -232,7 +231,11 @@ fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {
 /// commands so their stderr reaches the journal), and gamescope (the armed
 /// dispatch path).
 fn verify_greeter_binaries() -> Result<()> {
-    for bin in ["/usr/bin/vigil", "/usr/bin/systemd-cat", "/usr/bin/gamescope"] {
+    for bin in [
+        "/usr/bin/vigil",
+        "/usr/bin/systemd-cat",
+        "/usr/bin/gamescope",
+    ] {
         if !Path::new(bin).exists() {
             bail!("{bin} not found — the login path cannot work without it");
         }

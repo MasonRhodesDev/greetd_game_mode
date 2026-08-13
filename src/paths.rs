@@ -24,7 +24,6 @@ impl PathManager {
             .unwrap_or(&self.greetd_dir);
         self.root.join(rel)
     }
-
 }
 
 #[cfg(test)]

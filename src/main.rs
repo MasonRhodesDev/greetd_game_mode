@@ -1,9 +1,9 @@
 mod approval;
 mod setup;
 
-use game_mode::{config, game_mode_switch};
-use game_mode::config::Config;
 use anyhow::Result;
+use game_mode::config::Config;
+use game_mode::{config, game_mode_switch};
 use gilrs::{Button, Event, Gilrs};
 use serde_json::Value;
 use std::{
