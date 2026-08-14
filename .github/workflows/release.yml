@@ -9,11 +9,15 @@ permissions:
 
 jobs:
   release:
-    uses: MasonRhodesDev/packaging-workflows/.github/workflows/release.yml@main
+    uses: MasonRhodesDev/packaging-workflows/.github/workflows/release.yml@89a6561a85e21ca8425dbdace40d115c0bbc852d
     secrets: inherit
     with:
+      spec-name: game-mode
+      security: true
       # vigil (the greeter this package depends on) ships from [mason].
       extra-repos: |
         [mason]
-        SigLevel = Optional TrustAll
+        SigLevel = Required DatabaseRequired
         Server = https://masonrhodesdev.github.io/arch-repo/x86_64
+      extra-repo-key-url: https://masonrhodesdev.github.io/arch-repo/mason-repo.asc
+      extra-repo-key-fingerprint: 41450EEF8CEE7AB8CD3896221284404A6B70485C

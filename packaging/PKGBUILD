@@ -23,7 +23,7 @@ optdepends=(
   'steam: the game session itself (requires the [multilib] repo)'
 )
 source=("$pkgname-$pkgver.tar.gz::https://github.com/MasonRhodesDev/greetd_game_mode/archive/v$pkgver.tar.gz")
-sha256sums=('SKIP') # pin on release: updpkgsums
+sha256sums=('20a879a128fea7edcfb96fe284a582aad13ac6c18ba74c87a348dd16cb37feac')
 
 prepare() {
   cd "$pkgname-$pkgver"
