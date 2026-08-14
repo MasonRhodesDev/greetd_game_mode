@@ -25,6 +25,7 @@ BuildRequires:  systemd-rpm-macros
 # libsystemd (journal) + libudev (gilrs) + openssl (verifier)
 BuildRequires:  systemd-devel
 BuildRequires:  openssl-devel
+Requires:       bubblewrap
 Requires:       greetd
 Requires:       gamescope
 # vigil is both the greeter and the landing screen for every session exit;
@@ -70,6 +71,7 @@ install -Dpm0644 dist/game-mode.service %{buildroot}%{_unitdir}/game-mode.servic
 install -Dpm0644 dist/access-gate-verifier.service %{buildroot}%{_unitdir}/access-gate-verifier.service
 install -Dpm0644 dist/game-mode.sysusers %{buildroot}%{_sysusersdir}/game-mode.conf
 install -Dpm0644 dist/game-mode.tmpfiles %{buildroot}%{_tmpfilesdir}/game-mode.conf
+install -Dpm0644 dist/70-game-mode-joystick.rules %{buildroot}%{_udevrulesdir}/70-game-mode-joystick.rules
 install -d -m0700 %{buildroot}%{_sharedstatedir}/access-gate
 
 # greetd payload: templates rendered into /etc/greetd by `game-mode setup`
@@ -112,6 +114,7 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_unitdir}/access-gate-verifier.service
 %{_sysusersdir}/game-mode.conf
 %{_tmpfilesdir}/game-mode.conf
+%{_udevrulesdir}/70-game-mode-joystick.rules
 %dir %attr(0700, access-gate, access-gate) %{_sharedstatedir}/access-gate
 %{_datadir}/game-mode/
 

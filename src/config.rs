@@ -104,8 +104,8 @@ pub struct GameMode {
     pub debug: bool,
 }
 
-// Device access groups (input/video) are granted by the systemd unit's
-// SupplementaryGroups=, not tracked here.
+// Joystick-only device access is granted by the package's udev rule and the
+// systemd unit's dedicated SupplementaryGroups= entry, not tracked here.
 #[derive(Debug)]
 pub struct Permissions {
     pub greeter_user: String,

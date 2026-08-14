@@ -3,3 +3,8 @@
 # NOT created here — it is a real login account chosen at `game-mode setup`
 # time.
 u access-gate - "game-mode access gate verifier" - -
+
+# Dedicated access for udev-classified joystick event nodes. The system
+# service joins this as a supplementary group without granting it to the
+# greeter account globally.
+g game-mode-joystick - -

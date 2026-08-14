@@ -21,8 +21,10 @@ Group=greeter
 Environment=RUST_LOG=game_mode=debug
 Environment=RUST_BACKTRACE=1
 
-# Add necessary device access
-SupplementaryGroups=input video
+# Read only udev-classified joystick event devices. The package rule assigns
+# those nodes to this dedicated group; keyboards and display devices remain
+# inaccessible.
+SupplementaryGroups=game-mode-joystick
 
 [Install]
 WantedBy=greetd.service 

@@ -187,7 +187,7 @@ The game session runs Steam inside a bubblewrap sandbox with a curated view
 of `$HOME`: secrets (.ssh, .gnupg, browser profiles, repos, …) are absent,
 and `$HOME` is read-only except for explicit game binds. See the bind list
 in `greetd/scripts/game-mode-wrapper.sh`; add `--bind` lines if a game needs
-more. Escape hatch while debugging: `touch /games/.game-mode-no-mask`.
+more. The session refuses to start if bubblewrap is unavailable.
 
 ## Discord Integration
 

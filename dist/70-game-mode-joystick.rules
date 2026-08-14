@@ -1,0 +1,3 @@
+# Restrict the game-mode daemon to joystick-class event nodes. This avoids
+# granting the greeter service access to keyboards, mice, cameras, or GPUs.
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_JOYSTICK}=="1", GROUP:="game-mode-joystick", MODE:="0660"

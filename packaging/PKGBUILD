@@ -14,7 +14,7 @@ options=(!lto)  # ring's C objects become GCC LTO bitcode that ld.lld cannot rea
 url="https://github.com/MasonRhodesDev/greetd_game_mode"
 license=('MIT')
 install="$pkgname.install"
-depends=('greetd' 'gamescope' 'vigil')
+depends=('bubblewrap' 'greetd' 'gamescope' 'vigil')
 makedepends=('cargo' 'systemd' 'openssl')
 optdepends=(
   'discord: in-session voice chat (launched from Big Picture)'
@@ -66,6 +66,7 @@ package() {
   install -Dm644 dist/access-gate-verifier.service "$pkgdir/usr/lib/systemd/system/access-gate-verifier.service"
   install -Dm644 dist/game-mode.sysusers "$pkgdir/usr/lib/sysusers.d/game-mode.conf"
   install -Dm644 dist/game-mode.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/game-mode.conf"
+  install -Dm644 dist/70-game-mode-joystick.rules "$pkgdir/usr/lib/udev/rules.d/70-game-mode-joystick.rules"
 
   # greetd payload: templates rendered into /etc/greetd by `game-mode setup`
   for f in config.toml bg.png; do

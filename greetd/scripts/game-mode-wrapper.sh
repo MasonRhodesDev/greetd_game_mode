@@ -76,12 +76,10 @@ fi
 # root. Verified: SLR/pressure-vessel (nested bwrap) runs fine inside this.
 #
 # Extend-on-breakage: if a game needs another dir, add a --bind line.
-# Escape hatch while debugging: `touch $GAMES_DIR/.game-mode-no-mask` and relaunch.
 # ----------------------------------------------------------------------------
-if [ -e "$GAMES_DIR/.game-mode-no-mask" ] || ! command -v bwrap >/dev/null 2>&1; then
-    echo "game-mode-wrapper: MASK DISABLED (flag file or bwrap missing)" >&2
-    start_session_apps
-    exec steam -gamepadui -steamos3
+if ! command -v bwrap >/dev/null 2>&1; then
+    echo "game-mode-wrapper: refusing unsandboxed session; bwrap is missing" >&2
+    exit 1
 fi
 
 # Only bind paths that exist (bwrap errors out on missing sources).
