@@ -84,7 +84,7 @@ Components on disk after install:
 | `/etc/game-mode/approval.env` | verifier + daemon config (RP ID, socket, timeout, `AG_DISABLED` opt-out) |
 | `/var/lib/access-gate/` | enrolled passkey, push subscription, VAPID key (system user `access-gate`) |
 | `/etc/greetd/` | greeter + game session configs (rendered/deployed by `game-mode setup`) |
-| `/etc/sudoers.d/greeter-greetd` | exact-match grants: restart greetd, fgconsole, rm the greetd runfile |
+| `/etc/sudoers.d/greeter-greetd` | exact-match grants: restart greetd and remove the greetd runfile |
 
 ### One-time phone setup
 

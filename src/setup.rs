@@ -243,8 +243,8 @@ fn verify_greeter_binaries() -> Result<()> {
     Ok(())
 }
 
-/// Render the sudoers grant (greetd restart, fgconsole, greetd runfile
-/// removal) from the shipped template and install it via a visudo -c gate.
+/// Render the sudoers grant (greetd restart and runfile removal) from the
+/// shipped template and install it via a visudo -c gate.
 fn install_sudoers(greeter_user: &str) -> Result<()> {
     let text = fs::read_to_string(SUDOERS_TEMPLATE)
         .with_context(|| format!("failed to read {SUDOERS_TEMPLATE}"))?
