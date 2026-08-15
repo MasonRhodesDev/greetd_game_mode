@@ -315,6 +315,7 @@ impl Watchdog {
         std::thread::sleep(Duration::from_secs(30));
         if game_running() || steam_running() {
             self.log("steam -shutdown ignored; sending SIGTERM to steam");
+            // Machine-wide: this binary has no session-scoped process helper.
             let _ = Command::new("pkill").args(["-x", "steam"]).status();
         }
     }

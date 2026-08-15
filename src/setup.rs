@@ -8,7 +8,7 @@
 //!   - creates the games user/group and the shared game library directory
 //!   - applies the packaged sysusers/tmpfiles snippets (access-gate user,
 //!     /var/lib/access-gate)
-//!   - sets up /etc/greetd group ownership + logs dir
+//!   - creates the greetd logs dir (config.toml stays root-owned)
 //!   - renders the one static greetd config from /usr/share/game-mode/greetd
 //!     into /etc/greetd/config.toml (greetd needs concrete values on disk);
 //!     mode switching never rewrites it (vigil#29)
@@ -103,6 +103,26 @@ fn run_checked(program: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
+/// Copy `path` to `{path}.bak` when it exists and differs from `new_contents`.
+fn backup_if_changed(path: &Path, new_contents: &[u8]) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let current = fs::read(path)
+        .with_context(|| format!("failed to read {} for backup", path.display()))?;
+    if current == new_contents {
+        return Ok(());
+    }
+    let bak = path.with_file_name(format!(
+        "{}.bak",
+        path.file_name().and_then(|n| n.to_str()).unwrap_or("file")
+    ));
+    fs::write(&bak, current)
+        .with_context(|| format!("failed to backup {} -> {}", path.display(), bak.display()))?;
+    println!("Backed up {} -> {}", path.display(), bak.display());
+    Ok(())
+}
+
 fn write_runtime_config(vt: u32, user: &str, group: &str, dir: &str) -> Result<()> {
     fs::create_dir_all(ETC_DIR)?;
     let command = toml::Value::Array(
@@ -187,8 +207,20 @@ fn setup_greetd_dir(cfg: &Config) -> Result<()> {
     let greetd_dir = cfg.get_greetd_dir();
     let greeter = &cfg.permissions.greeter_user;
     fs::create_dir_all(greetd_dir.join("logs"))?;
-    run_checked("chgrp", &["-R", greeter, greetd_dir.to_str().unwrap()])?;
-    run_checked("chmod", &["g+rwxs", greetd_dir.to_str().unwrap()])?;
+    // Do not chgrp / chmod g+rwxs /etc/greetd: without a sticky bit the
+    // greeter could unlink and replace config.toml, and root greetd would
+    // then execute that session command. Keep the directory root-owned.
+    run_checked("chown", &["root:root", greetd_dir.to_str().unwrap()])?;
+    run_checked("chmod", &["755", greetd_dir.to_str().unwrap()])?;
+    let logs = greetd_dir.join("logs");
+    run_checked(
+        "chown",
+        &[
+            "-R",
+            &format!("{greeter}:{greeter}"),
+            logs.to_str().unwrap(),
+        ],
+    )?;
     Ok(())
 }
 
@@ -213,9 +245,12 @@ fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {
         // the old symlink-swapping setup, and writing through it would
         // clobber whatever it points at instead of replacing it.
         let dst = greetd_dir.join(name);
+        backup_if_changed(&dst, text.as_bytes())?;
         let tmp = greetd_dir.join(format!("{name}.new"));
         fs::write(&tmp, text).with_context(|| format!("failed to write {}", tmp.display()))?;
         fs::rename(&tmp, &dst).with_context(|| format!("failed to install {}", dst.display()))?;
+        run_checked("chown", &["root:root", dst.to_str().unwrap()])?;
+        fs::set_permissions(&dst, fs::Permissions::from_mode(0o644))?;
     }
     // Legacy artifacts of the symlink-swapping era; stale copies would only
     // mislead. Best-effort.
@@ -249,6 +284,7 @@ fn install_sudoers(greeter_user: &str) -> Result<()> {
     let text = fs::read_to_string(SUDOERS_TEMPLATE)
         .with_context(|| format!("failed to read {SUDOERS_TEMPLATE}"))?
         .replace("{{greeter_user}}", greeter_user);
+    backup_if_changed(Path::new(SUDOERS_PATH), text.as_bytes())?;
     let tmp = format!("{SUDOERS_PATH}.tmp");
     fs::write(&tmp, text)?;
     fs::set_permissions(&tmp, fs::Permissions::from_mode(0o440))?;

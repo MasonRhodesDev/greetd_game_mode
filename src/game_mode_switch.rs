@@ -86,6 +86,10 @@ pub fn switch_to_game_mode() -> Result<()> {
         .args(["/usr/bin/systemctl", "restart", "greetd.service"])
         .status()?;
     debug!("systemctl command exit status: {}", status);
+    if !status.success() {
+        disarm();
+        anyhow::bail!("failed to restart greetd.service");
+    }
 
     info!("Successfully switched to game mode");
     Ok(())
