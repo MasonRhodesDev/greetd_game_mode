@@ -12,7 +12,7 @@
 %bcond_without check
 
 Name:           game-mode
-Version:        0.2.1
+Version:        0.2.2
 Release:        1%{?dist}
 Summary:        Console-style greetd game mode with gamepad entry and passkey approval
 License:        MIT
@@ -128,6 +128,10 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_datadir}/game-mode/
 
 %changelog
+* Tue Aug 18 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.2-1
+- Rebuild through packaging-workflows v1.0.1 so the signed extra repository
+  database is synchronized before resolving the Vigil dependency.
+
 * Tue Aug 18 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.1-1
 - Decouple authenticated UWSM startup from the system graphical target.
 - Use a hyphen-free watchdog delegate so UWSM autoready resolves its unit.
