@@ -12,7 +12,7 @@
 %bcond_without check
 
 Name:           game-mode
-Version:        0.2.2
+Version:        0.2.3
 Release:        1%{?dist}
 Summary:        Console-style greetd game mode with gamepad entry and passkey approval
 License:        MIT
@@ -64,8 +64,9 @@ installs files only; host provisioning is `sudo game-mode setup`.
 # NB: upstream's ELF watchdog of the same name lives in /usr/local/bin on this box
 # (cmake install); the script skips script-shebang candidates so it can never
 # recurse into itself (2026-08-06 session breakage).
-install -Dpm0755 greetd/scripts/uwsm-start-hyprland %{buildroot}%{_bindir}/start-hyprland
 install -Dpm0755 greetd/scripts/uwsm-start-hyprland %{buildroot}%{_libexecdir}/game-mode/uwsm-start-hyprland
+install -d %{buildroot}%{_bindir}
+ln -s ../libexec/game-mode/uwsm-start-hyprland %{buildroot}%{_bindir}/start-hyprland
 install -Dpm0755 greetd/scripts/hyprland_watchdog %{buildroot}%{_libexecdir}/game-mode/hyprland_watchdog
 install -Dpm0644 dist/hyprland-mason.desktop %{buildroot}%{_datadir}/wayland-sessions/hyprland-mason.desktop
 install -Dpm0755 greetd/scripts/game-mode-wrapper.sh %{buildroot}%{_bindir}/game-mode-wrapper
@@ -128,6 +129,10 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_datadir}/game-mode/
 
 %changelog
+* Tue Aug 18 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.3-1
+- Make the /usr/bin compatibility launcher a symlink to the canonical helper,
+  avoiding RPM hardlinks across /usr/bin and /usr/libexec partitions.
+
 * Tue Aug 18 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.2-1
 - Rebuild through packaging-workflows v1.0.1 so the signed extra repository
   database is synchronized before resolving the Vigil dependency.
@@ -138,7 +143,7 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 - Reduce completed-session drain polling latency.
 - Own the UWSM helper and login session entry so upgrades replace them.
 
-* Wed Aug 13 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.0-1
+* Thu Aug 13 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.0-1
 - Static greetd config + armed dispatcher: /etc/greetd/config.toml is
   rendered once and never rewritten; game-mode-dispatch (new binary,
   permanent [initial_session]) execs the game session while the one-shot

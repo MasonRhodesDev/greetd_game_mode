@@ -6,7 +6,7 @@
 # greetd config swap, sudoers, tailscale) is `sudo game-mode setup`.
 
 pkgname=game-mode
-pkgver=0.2.2
+pkgver=0.2.3
 pkgrel=1
 pkgdesc="Console-style greetd game mode: gamepad-triggered Steam Big Picture session with passkey approval"
 arch=('x86_64')
@@ -56,8 +56,9 @@ package() {
   install -Dm755 target/release/access-gate-verifier "$pkgdir/usr/bin/access-gate-verifier"
 
   # Session helper scripts (referenced by the greetd session configs)
-  install -Dm755 greetd/scripts/uwsm-start-hyprland "$pkgdir/usr/bin/start-hyprland"
   install -Dm755 greetd/scripts/uwsm-start-hyprland "$pkgdir/usr/libexec/game-mode/uwsm-start-hyprland"
+  install -d "$pkgdir/usr/bin"
+  ln -s ../libexec/game-mode/uwsm-start-hyprland "$pkgdir/usr/bin/start-hyprland"
   install -Dm755 greetd/scripts/hyprland_watchdog "$pkgdir/usr/libexec/game-mode/hyprland_watchdog"
   install -Dm644 dist/hyprland-mason.desktop "$pkgdir/usr/share/wayland-sessions/hyprland-mason.desktop"
   install -Dm755 greetd/scripts/game-mode-wrapper.sh "$pkgdir/usr/bin/game-mode-wrapper"
