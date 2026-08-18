@@ -26,12 +26,9 @@ if [ -x /usr/libexec/game-mode/hyprland_watchdog ]; then
     exec uwsm start -g -1 -e -D Hyprland -- /usr/libexec/game-mode/hyprland_watchdog
 fi
 
-# The watchdog must be upstream's ELF binary. On Arch that's the hyprland
-# package's /usr/bin/start-hyprland; on Fedora the local build installs it to
-# /usr/local/bin and game-mode.spec ships THIS script as /usr/bin/start-hyprland
-# — execing that path here would recurse into ourselves.  This fallback may
-# retain UWSM's cosmetic escaped-ID warning on older installations, but still
-# starts a working session.
+# The watchdog must be upstream's ELF binary. Stable packages install it at
+# /usr/bin/start-hyprland; legacy local builds used /usr/local/bin. Skip
+# shebang scripts to avoid recursion with older game-mode installations.
 for wd in /usr/local/bin/start-hyprland /usr/bin/start-hyprland; do
     [ -x "$wd" ] && [ "$(head -c2 "$wd")" != '#!' ] && exec uwsm start -g -1 -e -D Hyprland -- "$wd"
 done

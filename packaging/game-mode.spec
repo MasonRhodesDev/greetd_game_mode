@@ -12,7 +12,7 @@
 %bcond_without check
 
 Name:           game-mode
-Version:        0.2.3
+Version:        0.2.4
 Release:        1%{?dist}
 Summary:        Console-style greetd game mode with gamepad entry and passkey approval
 License:        MIT
@@ -60,13 +60,9 @@ installs files only; host provisioning is `sudo game-mode setup`.
 (cd verifier && %cargo_install)
 
 # Session helper scripts (referenced by the greetd session configs)
-# uwsm-start-hyprland ships as the /usr/bin/start-hyprland the greeter launcher execs.
-# NB: upstream's ELF watchdog of the same name lives in /usr/local/bin on this box
-# (cmake install); the script skips script-shebang candidates so it can never
-# recurse into itself (2026-08-06 session breakage).
+# The game-mode session uses a private UWSM launcher. The Hyprland package owns
+# /usr/bin/start-hyprland.
 install -Dpm0755 greetd/scripts/uwsm-start-hyprland %{buildroot}%{_libexecdir}/game-mode/uwsm-start-hyprland
-install -d %{buildroot}%{_bindir}
-ln -s ../libexec/game-mode/uwsm-start-hyprland %{buildroot}%{_bindir}/start-hyprland
 install -Dpm0755 greetd/scripts/hyprland_watchdog %{buildroot}%{_libexecdir}/game-mode/hyprland_watchdog
 install -Dpm0644 dist/hyprland-mason.desktop %{buildroot}%{_datadir}/wayland-sessions/hyprland-mason.desktop
 install -Dpm0755 greetd/scripts/game-mode-wrapper.sh %{buildroot}%{_bindir}/game-mode-wrapper
@@ -112,7 +108,6 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_bindir}/game-mode-steam-shortcut
 %{_bindir}/game-mode-dispatch
 %{_bindir}/access-gate-verifier
-%{_bindir}/start-hyprland
 %{_libexecdir}/game-mode/uwsm-start-hyprland
 %{_libexecdir}/game-mode/hyprland_watchdog
 %{_datadir}/wayland-sessions/hyprland-mason.desktop
@@ -129,6 +124,10 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_datadir}/game-mode/
 
 %changelog
+* Tue Aug 18 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.4-1
+- Leave /usr/bin/start-hyprland owned by the stable Hyprland package; the
+  game-mode session uses its private libexec launcher directly.
+
 * Tue Aug 18 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.3-1
 - Make the /usr/bin compatibility launcher a symlink to the canonical helper,
   avoiding RPM hardlinks across /usr/bin and /usr/libexec partitions.
