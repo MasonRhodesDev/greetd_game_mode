@@ -11,7 +11,28 @@ DEADLINE=$(( $(date +%s) + 90 ))
 while systemctl --user --quiet is-active graphical-session.target 2>/dev/null \
    || systemctl --user list-units --state=deactivating --no-legend 2>/dev/null | grep -q 'wayland-session'; do
     [ "$(date +%s)" -ge "$DEADLINE" ] && break
-    sleep 1
+    # 0.25s: this poll gates every relogin; 1s granularity added ~0.5s avg.
+    sleep 0.25
 done
 
-exec uwsm start -e -D Hyprland -- /usr/bin/start-hyprland
+# Do not couple login to the system graphical.target job.  greetd is already
+# running and owns the VT; waiting here means an unrelated network-online
+# timeout leaves an authenticated user staring at the greeter for a minute.
+#
+# Use a package-owned, hyphen-free delegate so UWSM's compositor ID and its
+# autoready unit lookup agree.  The delegate selects the distro's real
+# start-hyprland ELF and falls back safely when the watchdog is unavailable.
+if [ -x /usr/libexec/game-mode/hyprland_watchdog ]; then
+    exec uwsm start -g -1 -e -D Hyprland -- /usr/libexec/game-mode/hyprland_watchdog
+fi
+
+# The watchdog must be upstream's ELF binary. On Arch that's the hyprland
+# package's /usr/bin/start-hyprland; on Fedora the local build installs it to
+# /usr/local/bin and game-mode.spec ships THIS script as /usr/bin/start-hyprland
+# — execing that path here would recurse into ourselves.  This fallback may
+# retain UWSM's cosmetic escaped-ID warning on older installations, but still
+# starts a working session.
+for wd in /usr/local/bin/start-hyprland /usr/bin/start-hyprland; do
+    [ -x "$wd" ] && [ "$(head -c2 "$wd")" != '#!' ] && exec uwsm start -g -1 -e -D Hyprland -- "$wd"
+done
+exec uwsm start -g -1 -e -D Hyprland -- Hyprland

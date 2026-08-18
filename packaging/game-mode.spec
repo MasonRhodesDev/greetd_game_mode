@@ -12,7 +12,7 @@
 %bcond_without check
 
 Name:           game-mode
-Version:        0.2.0
+Version:        0.2.1
 Release:        1%{?dist}
 Summary:        Console-style greetd game mode with gamepad entry and passkey approval
 License:        MIT
@@ -60,8 +60,14 @@ installs files only; host provisioning is `sudo game-mode setup`.
 (cd verifier && %cargo_install)
 
 # Session helper scripts (referenced by the greetd session configs)
-# uwsm-start-hyprland ships as the /usr/bin/start-hyprland the greeter launcher execs
+# uwsm-start-hyprland ships as the /usr/bin/start-hyprland the greeter launcher execs.
+# NB: upstream's ELF watchdog of the same name lives in /usr/local/bin on this box
+# (cmake install); the script skips script-shebang candidates so it can never
+# recurse into itself (2026-08-06 session breakage).
 install -Dpm0755 greetd/scripts/uwsm-start-hyprland %{buildroot}%{_bindir}/start-hyprland
+install -Dpm0755 greetd/scripts/uwsm-start-hyprland %{buildroot}%{_libexecdir}/game-mode/uwsm-start-hyprland
+install -Dpm0755 greetd/scripts/hyprland_watchdog %{buildroot}%{_libexecdir}/game-mode/hyprland_watchdog
+install -Dpm0644 dist/hyprland-mason.desktop %{buildroot}%{_datadir}/wayland-sessions/hyprland-mason.desktop
 install -Dpm0755 greetd/scripts/game-mode-wrapper.sh %{buildroot}%{_bindir}/game-mode-wrapper
 install -Dpm0755 greetd/scripts/game-mode-discord %{buildroot}%{_bindir}/game-mode-discord
 install -Dpm0755 greetd/scripts/game-mode-overlay %{buildroot}%{_bindir}/game-mode-overlay
@@ -106,6 +112,9 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_bindir}/game-mode-dispatch
 %{_bindir}/access-gate-verifier
 %{_bindir}/start-hyprland
+%{_libexecdir}/game-mode/uwsm-start-hyprland
+%{_libexecdir}/game-mode/hyprland_watchdog
+%{_datadir}/wayland-sessions/hyprland-mason.desktop
 %{_bindir}/game-mode-wrapper
 %{_bindir}/game-mode-discord
 %{_bindir}/game-mode-overlay
@@ -119,6 +128,12 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_datadir}/game-mode/
 
 %changelog
+* Tue Aug 18 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.1-1
+- Decouple authenticated UWSM startup from the system graphical target.
+- Use a hyphen-free watchdog delegate so UWSM autoready resolves its unit.
+- Reduce completed-session drain polling latency.
+- Own the UWSM helper and login session entry so upgrades replace them.
+
 * Wed Aug 13 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.2.0-1
 - Static greetd config + armed dispatcher: /etc/greetd/config.toml is
   rendered once and never rewritten; game-mode-dispatch (new binary,

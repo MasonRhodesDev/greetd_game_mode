@@ -9,11 +9,8 @@
 #    refuses hidden entry IDs, so that combination broke login on
 #    2026-07-07. Hide upstream's uwsm entry too and never depend on it.
 #
-# 2. Install OUR login entry (unowned by any package, immune to upgrades).
-#    It launches uwsm in hardcode mode with a binary PATH — no desktop-entry
-#    indirection, so hiding/renaming package entries can never break it.
-#    start-hyprland is upstream's watchdog wrapper: crash loops land in
-#    safe mode instead of a dead seat.
+# 2. Refresh OUR package-owned login entry.  The canonical copy lives in the
+#    game-mode payload so upgrades replace both it and its helper atomically.
 
 for f in /usr/share/wayland-sessions/hyprland.desktop \
          /usr/share/wayland-sessions/hyprland-uwsm.desktop \
@@ -27,7 +24,7 @@ cat > /usr/share/wayland-sessions/hyprland-mason.desktop << 'EOF'
 [Desktop Entry]
 Name=Hyprland (uwsm)
 Comment=Hyprland via uwsm + start-hyprland watchdog (local entry, survives package upgrades)
-Exec=/usr/local/bin/uwsm-start-hyprland
+Exec=/usr/libexec/game-mode/uwsm-start-hyprland
 TryExec=uwsm
 DesktopNames=Hyprland
 Type=Application
