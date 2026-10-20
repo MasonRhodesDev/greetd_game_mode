@@ -84,6 +84,7 @@ for f in config.toml bg.png; do
     install -Dpm0644 "greetd/$f" "%{buildroot}%{_datadir}/game-mode/greetd/$f"
 done
 install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/sudoers/greeter-greetd
+install -Dpm0644 dist/binds.example %{buildroot}%{_datadir}/game-mode/binds.example
 
 %if %{with check}
 %check

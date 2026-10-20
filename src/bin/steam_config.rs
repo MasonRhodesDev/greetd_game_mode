@@ -63,13 +63,16 @@ fn apply() -> ExitCode {
         }
     );
 
+    // The global config plus each account's mirror of the same keys.
+    let mut targets = vec![steam::steam_root(&home).join("config/config.vdf")];
+    targets.extend(
+        steam::user_config_dirs(&home)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|dir| dir.join("localconfig.vdf")),
+    );
     let mut failures = 0;
-    for rel in [
-        "config/config.vdf",
-        // per-user mirror (the exploration found the same keys here)
-        "userdata/80409974/config/localconfig.vdf",
-    ] {
-        let path = steam::steam_root(&home).join(rel);
+    for path in targets {
         if !path.exists() {
             continue;
         }

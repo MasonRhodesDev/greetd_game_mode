@@ -332,30 +332,24 @@ fn main() {
     }
 
     let home = env::var("HOME").unwrap_or_default();
-    let userdata = steam::steam_root(Path::new(&home)).join("userdata");
-    let Ok(users) = fs::read_dir(&userdata) else {
-        eprintln!(
-            "no Steam userdata at {} (log into Steam once first)",
-            userdata.display()
-        );
-        std::process::exit(1);
+    let config_dirs = match steam::user_config_dirs(Path::new(&home)) {
+        Ok(dirs) if !dirs.is_empty() => dirs,
+        _ => {
+            eprintln!("no Steam userdata under {home} (log into Steam once first)");
+            std::process::exit(1);
+        }
     };
 
-    let mut touched = false;
-    for entry in users.filter_map(|e| e.ok()) {
-        let id = entry.file_name().to_string_lossy().into_owned();
-        if !id.chars().all(|c| c.is_ascii_digit()) || id == "0" {
-            continue;
-        }
-        let config_dir = entry.path().join("config");
-        if !config_dir.is_dir() {
-            continue;
-        }
+    for config_dir in config_dirs {
+        let id = config_dir
+            .parent()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let vdf = config_dir.join("shortcuts.vdf");
         match add_to_file(&vdf, &name, &exe, &start_dir) {
             Ok((outcome, appid)) => {
                 println!("{name:?} shortcut {outcome} for Steam user {id}");
-                touched = true;
                 // Square library icon: write a real PNG to grid/<appid>_icon.png
                 // AND point the shortcut's icon field at it, UNQUOTED. gamepadui
                 // reads the icon field and opens the path literally — quotes
@@ -382,9 +376,5 @@ fn main() {
                 std::process::exit(2);
             }
         }
-    }
-    if !touched {
-        eprintln!("no Steam users found under {}", userdata.display());
-        std::process::exit(1);
     }
 }
