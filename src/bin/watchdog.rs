@@ -289,8 +289,8 @@ impl Watchdog {
             .status();
         std::thread::sleep(Duration::from_secs(6));
 
-        // Re-sync Steam Input: bounce the controller's BT connection…
-        if let Some(mac) = connected_xbox_mac() {
+        // Re-sync Steam Input: bounce each gamepad's BT connection…
+        for mac in connected_gamepads() {
             self.log(&format!("re-sync: bouncing controller bluetooth {mac}"));
             let _ = Command::new("bluetoothctl")
                 .args(["disconnect", &mac])
@@ -340,16 +340,21 @@ fn game_running() -> bool {
         .unwrap_or(false)
 }
 
-/// MAC of the connected Xbox controller, if any.
-fn connected_xbox_mac() -> Option<String> {
-    let out = Command::new("bluetoothctl")
-        .args(["devices", "Connected"])
-        .output()
-        .ok()?;
-    String::from_utf8_lossy(&out.stdout)
+/// MACs of connected Bluetooth gamepads: devices whose BlueZ icon class is
+/// `input-gaming`, so headsets and keyboards are left alone.
+fn connected_gamepads() -> Vec<String> {
+    let bluetoothctl = |args: &[&str]| {
+        Command::new("bluetoothctl")
+            .args(args)
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default()
+    };
+    bluetoothctl(&["devices", "Connected"])
         .lines()
-        .find(|l| l.to_lowercase().contains("xbox"))
-        .and_then(|l| l.split_whitespace().nth(1).map(str::to_string))
+        .filter_map(|l| l.split_whitespace().nth(1).map(str::to_string))
+        .filter(|mac| bluetoothctl(&["info", mac]).contains("Icon: input-gaming"))
+        .collect()
 }
 
 fn humantime(t: SystemTime) -> String {

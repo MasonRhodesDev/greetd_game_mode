@@ -1,0 +1,14 @@
+# Extra directories to expose inside the game session's sandbox.
+# Copy to /etc/game-mode/binds and edit. One entry per line:
+#
+#   rw <path>   read-write (game saves, mod managers, launcher state)
+#   ro <path>   read-only  (scripts used in Steam launch options)
+#
+# Paths are relative to the session user's home unless they start with /.
+# Paths that don't exist are skipped. Steam, Discord and the common engine
+# dirs (Godot, Unity, Valve) are already exposed by game-mode-wrapper.
+#
+# Examples:
+# rw .local/share/PrismLauncher
+# rw .config/r2modman
+# ro .local/bin

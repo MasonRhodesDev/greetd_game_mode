@@ -78,6 +78,7 @@ package() {
     install -Dm644 "greetd/$f" "$pkgdir/usr/share/game-mode/greetd/$f"
   done
   install -Dm644 dist/sudoers-greeter-greetd "$pkgdir/usr/share/game-mode/sudoers/greeter-greetd"
+  install -Dm644 dist/binds.example "$pkgdir/usr/share/game-mode/binds.example"
 
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"

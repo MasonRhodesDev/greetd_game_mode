@@ -75,7 +75,8 @@ fi
 # everything. The outer bwrap solves that naturally: pv enumerates the curated
 # root. Verified: SLR/pressure-vessel (nested bwrap) runs fine inside this.
 #
-# Extend-on-breakage: if a game needs another dir, add a --bind line.
+# Extend-on-breakage: if a game needs another dir, list it in
+# /etc/game-mode/binds (see binds.example) rather than editing this script.
 # ----------------------------------------------------------------------------
 if ! command -v bwrap >/dev/null 2>&1; then
     echo "game-mode-wrapper: refusing unsandboxed session; bwrap is missing" >&2
@@ -104,21 +105,31 @@ MASK=(
 maybe_bind --bind "$HOME/.local/share/Steam"
 maybe_bind --bind "$HOME/.steam"
 maybe_bind --bind "$HOME/.cache"                       # mesa/radv shader caches
-maybe_bind --ro-bind "$HOME/.local/bin"                # launch-option wrappers (ror2-mods-update)
 # Discord in-session: client state, overlay config + auth token, Electron NSS db
 maybe_bind --bind "$HOME/.config/discord"
 maybe_bind --bind "$HOME/.config/discover_overlay"   # NB underscore: the app ignores the package's hyphen
 maybe_bind --bind "$HOME/.pki"
-# Native-game / engine state
-maybe_bind --bind "$HOME/.local/share/PrismLauncher"   # Minecraft instances + saves
-maybe_bind --bind "$HOME/.local/share/SlayTheSpire2"
+# Engine-wide save/config dirs shared by many native games
 maybe_bind --bind "$HOME/.local/share/godot"
 maybe_bind --bind "$HOME/.local/share/vulkan"          # Steam-installed implicit layers
 maybe_bind --bind "$HOME/.config/unity3d"
 maybe_bind --bind "$HOME/.config/godot"
 maybe_bind --bind "$HOME/.config/Valve"
-maybe_bind --bind "$HOME/.config/r2modman"
-maybe_bind --bind "$HOME/.config/r2modmanPlus-local"
+
+# Host-specific extras: one "rw <path>" or "ro <path>" per line, path
+# relative to $HOME unless absolute. Missing paths are skipped.
+BINDS_FILE=/etc/game-mode/binds
+if [ -r "$BINDS_FILE" ]; then
+    while read -r mode path; do
+        case "$path" in /*) ;; *) path="$HOME/$path" ;; esac
+        case "$mode" in
+            ''|\#*) ;;
+            rw) maybe_bind --bind "$path" ;;
+            ro) maybe_bind --ro-bind "$path" ;;
+            *) echo "game-mode-wrapper: ignoring bad line in $BINDS_FILE: $mode $path" >&2 ;;
+        esac
+    done < "$BINDS_FILE"
+fi
 MASK+=(--remount-ro "$HOME")
 
 echo "game-mode-wrapper: launching session inside bwrap home mask" >&2

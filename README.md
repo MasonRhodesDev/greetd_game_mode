@@ -217,9 +217,13 @@ Limits:
 
 The game session runs Steam inside a bubblewrap sandbox with a curated view
 of `$HOME`: secrets (.ssh, .gnupg, browser profiles, repos, …) are absent,
-and `$HOME` is read-only except for explicit game binds. See the bind list
-in `greetd/scripts/game-mode-wrapper.sh`; add `--bind` lines if a game needs
-more. The session refuses to start if bubblewrap is unavailable.
+and `$HOME` is read-only except for explicit binds. The wrapper
+(`greetd/scripts/game-mode-wrapper.sh`) exposes Steam, Discord and the common
+engine save dirs (Godot, Unity, Valve). If a game needs more, such as a mod
+manager or launcher state, list it in `/etc/game-mode/binds`, one
+`rw <path>` or `ro <path>` per line, relative to the session user's home;
+`/usr/share/game-mode/binds.example` has the format. The session refuses to
+start if bubblewrap is unavailable.
 
 ## Discord Integration
 
