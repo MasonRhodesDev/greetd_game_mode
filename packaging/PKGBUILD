@@ -57,9 +57,6 @@ package() {
   install -Dm755 target/release/access-gate-verifier "$pkgdir/usr/bin/access-gate-verifier"
 
   # Session helper scripts (referenced by the greetd session configs)
-  install -Dm755 greetd/scripts/uwsm-start-hyprland "$pkgdir/usr/libexec/game-mode/uwsm-start-hyprland"
-  install -Dm755 greetd/scripts/hyprland_watchdog "$pkgdir/usr/libexec/game-mode/hyprland_watchdog"
-  install -Dm644 dist/hyprland-mason.desktop "$pkgdir/usr/share/wayland-sessions/hyprland-mason.desktop"
   install -Dm755 greetd/scripts/game-mode-wrapper.sh "$pkgdir/usr/bin/game-mode-wrapper"
   install -Dm755 greetd/scripts/game-mode-discord "$pkgdir/usr/bin/game-mode-discord"
   install -Dm755 greetd/scripts/game-mode-overlay "$pkgdir/usr/bin/game-mode-overlay"

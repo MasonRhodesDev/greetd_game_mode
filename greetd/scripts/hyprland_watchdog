@@ -1,9 +1,0 @@
-#!/bin/sh
-# Stable, hyphen-free UWSM compositor ID that delegates to Hyprland's real
-# watchdog without ever recursing into game-mode's compatibility wrapper.
-for watchdog in /usr/local/bin/start-hyprland /usr/bin/start-hyprland; do
-    if [ -x "$watchdog" ] && [ "$(head -c2 "$watchdog")" != '#!' ]; then
-        exec "$watchdog" "$@"
-    fi
-done
-exec Hyprland "$@"

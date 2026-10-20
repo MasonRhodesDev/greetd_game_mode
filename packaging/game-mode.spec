@@ -61,11 +61,6 @@ installs files only; host provisioning is `sudo game-mode setup`.
 (cd verifier && %cargo_install)
 
 # Session helper scripts (referenced by the greetd session configs)
-# The game-mode session uses a private UWSM launcher. The Hyprland package owns
-# /usr/bin/start-hyprland.
-install -Dpm0755 greetd/scripts/uwsm-start-hyprland %{buildroot}%{_libexecdir}/game-mode/uwsm-start-hyprland
-install -Dpm0755 greetd/scripts/hyprland_watchdog %{buildroot}%{_libexecdir}/game-mode/hyprland_watchdog
-install -Dpm0644 dist/hyprland-mason.desktop %{buildroot}%{_datadir}/wayland-sessions/hyprland-mason.desktop
 install -Dpm0755 greetd/scripts/game-mode-wrapper.sh %{buildroot}%{_bindir}/game-mode-wrapper
 install -Dpm0755 greetd/scripts/game-mode-discord %{buildroot}%{_bindir}/game-mode-discord
 install -Dpm0755 greetd/scripts/game-mode-overlay %{buildroot}%{_bindir}/game-mode-overlay
@@ -112,9 +107,6 @@ install -Dpm0644 dist/binds.example %{buildroot}%{_datadir}/game-mode/binds.exam
 %{_bindir}/game-mode-dispatch
 %{_bindir}/game-mode-wol
 %{_bindir}/access-gate-verifier
-%{_libexecdir}/game-mode/uwsm-start-hyprland
-%{_libexecdir}/game-mode/hyprland_watchdog
-%{_datadir}/wayland-sessions/hyprland-mason.desktop
 %{_bindir}/game-mode-wrapper
 %{_bindir}/game-mode-discord
 %{_bindir}/game-mode-overlay
