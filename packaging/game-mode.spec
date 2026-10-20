@@ -72,7 +72,6 @@ install -Dpm0755 greetd/scripts/game-mode-overlay %{buildroot}%{_bindir}/game-mo
 install -Dpm0755 greetd/scripts/steamos-session-select %{buildroot}%{_bindir}/steamos-session-select
 
 install -Dpm0644 dist/game-mode.service %{buildroot}%{_unitdir}/game-mode.service
-%{_unitdir}/game-mode-wol.service
 install -Dpm0644 dist/game-mode-wol.service %{buildroot}%{_unitdir}/game-mode-wol.service
 install -Dpm0644 dist/access-gate-verifier.service %{buildroot}%{_unitdir}/access-gate-verifier.service
 install -Dpm0644 dist/game-mode.sysusers %{buildroot}%{_sysusersdir}/game-mode.conf
@@ -120,6 +119,7 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_bindir}/game-mode-overlay
 %{_bindir}/steamos-session-select
 %{_unitdir}/game-mode.service
+%{_unitdir}/game-mode-wol.service
 %{_unitdir}/access-gate-verifier.service
 %{_sysusersdir}/game-mode.conf
 %{_tmpfilesdir}/game-mode.conf

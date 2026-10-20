@@ -108,8 +108,8 @@ fn backup_if_changed(path: &Path, new_contents: &[u8]) -> Result<()> {
     if !path.exists() {
         return Ok(());
     }
-    let current = fs::read(path)
-        .with_context(|| format!("failed to read {} for backup", path.display()))?;
+    let current =
+        fs::read(path).with_context(|| format!("failed to read {} for backup", path.display()))?;
     if current == new_contents {
         return Ok(());
     }
