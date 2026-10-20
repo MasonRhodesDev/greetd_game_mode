@@ -53,10 +53,9 @@ pub fn disarm() {
     }
 }
 
-pub fn switch_to_game_mode() -> Result<()> {
+pub fn switch_to_game_mode(config: &Config) -> Result<()> {
     info!("Starting game mode switch");
 
-    let config = Config::load()?;
     arm()?;
     debug!("armed {ARMED_FILE} (max age {ARMED_MAX_AGE_SECS}s)");
 

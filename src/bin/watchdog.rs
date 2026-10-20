@@ -21,6 +21,7 @@
 //!
 //! Logs to /tmp/game-mode-watchdog.log.
 
+use game_mode::steam::{self, steam_running, CEF_FLAG};
 use std::collections::VecDeque;
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
@@ -41,7 +42,7 @@ const ESCALATE_WINDOW: Duration = Duration::from_secs(600);
 
 fn main() {
     let home = PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/home".into()));
-    let logs = home.join(".local/share/Steam/logs");
+    let logs = steam::steam_root(&home).join("logs");
     let mut wd = Watchdog::new(logs, home);
     wd.log("watchdog started");
     wd.run();
@@ -321,31 +322,10 @@ impl Watchdog {
     }
 
     fn reassert_webhelper_flag(&self) {
-        let wrap = self
-            .home
-            .join(".local/share/Steam/ubuntu12_64/steamwebhelper_sniper_wrap.sh");
-        let Ok(text) = fs::read_to_string(&wrap) else {
-            return;
-        };
-        if text.contains("--disable-gpu-process-crash-limit") {
-            return;
-        }
-        let marker = "exec ./steamwebhelper \"$@\"";
-        if !text.contains(marker) {
-            return;
-        }
-        let new = text.replace(
-            marker,
-            "exec ./steamwebhelper \"$@\" --disable-gpu-process-crash-limit",
-        );
-        if fs::write(&wrap, new).is_ok() {
-            self.log("re-applied --disable-gpu-process-crash-limit (Steam had reverted it)");
+        if let Ok(true) = steam::patch_webhelper_wrap_file(&steam::webhelper_wrap(&self.home)) {
+            self.log(&format!("re-applied {CEF_FLAG} (Steam had reverted it)"));
         }
     }
-}
-
-fn steam_running() -> bool {
-    proc_comm_exists("steam")
 }
 
 /// A game is running iff a Steam reaper child exists.
@@ -356,15 +336,6 @@ fn game_running() -> bool {
                 fs::read_to_string(e.path().join("cmdline"))
                     .is_ok_and(|c| c.contains("reaper") && c.contains("SteamLaunch"))
             })
-        })
-        .unwrap_or(false)
-}
-
-fn proc_comm_exists(name: &str) -> bool {
-    fs::read_dir("/proc")
-        .map(|d| {
-            d.filter_map(|e| e.ok())
-                .any(|e| fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == name))
         })
         .unwrap_or(false)
 }
