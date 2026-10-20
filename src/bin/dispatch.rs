@@ -16,6 +16,7 @@
 
 use game_mode::config::{Config, ARMED_FILE, ARMED_MAX_AGE_SECS};
 use game_mode::game_mode_switch::is_armed;
+use game_mode::output;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 
@@ -36,6 +37,11 @@ fn main() {
             eprintln!("game-mode-dispatch: config error, not launching: {e}");
             return;
         }
+    };
+    // Point gamescope at the best display unless the config already does.
+    let command = match output::preferred_outputs() {
+        Some(outputs) => output::with_preferred_outputs(&command, &outputs),
+        None => command,
     };
     let Some((program, args)) = command.split_first() else {
         eprintln!("game-mode-dispatch: empty [session] command, not launching");

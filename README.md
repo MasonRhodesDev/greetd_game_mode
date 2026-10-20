@@ -173,7 +173,10 @@ keeps running, the greeter just respawns on its VT.
 2. The phone buzzes with the approval push.
 3. Tap the notification → fingerprint → a 5-second countdown shows on the
    greeter (vigil's banner; press **B** on the pad to cancel) → Steam Big
-   Picture starts (HDR enabled in gamescope).
+   Picture starts (HDR enabled in gamescope) on the highest-resolution
+   16:9 display, falling back to the others in resolution order. To pin a
+   display instead, add `"-O", "<connector>"` to `[session] command` in
+   `/etc/game-mode/config.toml`.
 4. In Big Picture: power menu → **Switch to Desktop** ends the session and
    returns to the greeter (Steam runs with `-steamos3`, which is what makes
    it invoke the `steamos-session-select` hook).
