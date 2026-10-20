@@ -61,7 +61,7 @@ fn load_cfg() -> Cfg {
 /// the entry countdown) replaces.
 fn notify(_icon: u8, _ms: u64, msg: &str) {
     info!("greeter: {msg}");
-    if let Ok(config) = game_mode::config::Config::load() {
+    if let Ok(config) = crate::config::Config::load() {
         let _ = std::fs::write(&config.greeter.banner_file, msg);
     }
 }
@@ -72,10 +72,31 @@ fn read_json_line(reader: &mut BufReader<UnixStream>) -> Option<Value> {
     serde_json::from_str(line.trim()).ok()
 }
 
+/// What the phone shows for one entry trigger, plus the retry hint the
+/// greeter banner shows when the approval times out.
+pub struct Prompt<'a> {
+    pub title: &'a str,
+    pub path: &'a str,
+    pub retry_hint: &'a str,
+}
+
+/// The Guide-button prompt.
+pub const GUIDE_PROMPT: Prompt<'static> = Prompt {
+    title: "Enter game mode?",
+    path: "switch this PC into Steam game mode",
+    retry_hint: "press the Guide button to retry",
+};
+
+/// Block on a phone passkey approval for the Guide button. See
+/// [`require_approval_for`].
+pub fn require_approval() -> bool {
+    require_approval_for(&GUIDE_PROMPT)
+}
+
 /// Block on a phone passkey approval before entering game mode. Returns true
 /// only on an approved decision; deny/timeout/verifier-down all return false
 /// (fail-closed: stay at the greeter).
-pub fn require_approval() -> bool {
+pub fn require_approval_for(prompt: &Prompt) -> bool {
     let cfg = load_cfg();
 
     // Explicit opt-out (AG_DISABLED=1 in approval.env): skip the phone push
@@ -101,9 +122,9 @@ pub fn require_approval() -> bool {
 
     let request = serde_json::json!({
         "exe": "game-mode",
-        "path": "switch this PC into Steam game mode",
+        "path": prompt.path,
         "group": "login",
-        "title": "Enter game mode?",
+        "title": prompt.title,
         "timeout_secs": cfg.timeout_secs,
     });
     if stream
@@ -154,7 +175,7 @@ pub fn require_approval() -> bool {
             notify(
                 0,
                 6000,
-                "Approval timed out — press the Guide button to retry",
+                &format!("Approval timed out — {}", prompt.retry_hint),
             );
             false
         }
