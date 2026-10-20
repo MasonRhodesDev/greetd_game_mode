@@ -1,0 +1,29 @@
+[Unit]
+Description=Game Mode Wake-on-LAN Listener (Steam Link wakes the greeter into game mode)
+After=greetd.service
+Wants=greetd.service
+BindsTo=greetd.service
+
+[Service]
+Type=simple
+WorkingDirectory=/etc/greetd
+# Verifier control-plane settings for the shared approval gate
+EnvironmentFile=-/etc/game-mode/approval.env
+ExecStart=/usr/bin/game-mode-wol
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/etc/greetd/logs/game-mode-wol.log
+StandardError=append:/etc/greetd/logs/game-mode-wol.log
+# Runs as the greeter for the same sudoers grant the game-mode daemon uses
+# to restart greetd into the game session.
+User=greeter
+Group=greeter
+
+Environment=RUST_LOG=game_mode=info
+
+# Steam Link sends its magic packet to UDP 9, below 1024. No bounding set:
+# restricting it would strip the capabilities sudo needs for the switch.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=greetd.service

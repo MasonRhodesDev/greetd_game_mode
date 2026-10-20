@@ -53,6 +53,7 @@ package() {
   install -Dm755 target/release/game-mode-watchdog "$pkgdir/usr/bin/game-mode-watchdog"
   install -Dm755 target/release/game-mode-steam-shortcut "$pkgdir/usr/bin/game-mode-steam-shortcut"
   install -Dm755 target/release/game-mode-dispatch "$pkgdir/usr/bin/game-mode-dispatch"
+  install -Dm755 target/release/game-mode-wol "$pkgdir/usr/bin/game-mode-wol"
   install -Dm755 target/release/access-gate-verifier "$pkgdir/usr/bin/access-gate-verifier"
 
   # Session helper scripts (referenced by the greetd session configs)
@@ -66,6 +67,7 @@ package() {
 
   # systemd units + access-gate system user/state dir
   install -Dm644 dist/game-mode.service "$pkgdir/usr/lib/systemd/system/game-mode.service"
+  install -Dm644 dist/game-mode-wol.service "$pkgdir/usr/lib/systemd/system/game-mode-wol.service"
   install -Dm644 dist/access-gate-verifier.service "$pkgdir/usr/lib/systemd/system/access-gate-verifier.service"
   install -Dm644 dist/game-mode.sysusers "$pkgdir/usr/lib/sysusers.d/game-mode.conf"
   install -Dm644 dist/game-mode.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/game-mode.conf"

@@ -182,6 +182,37 @@ Game mode is one-shot by design: the armed flag is consumed at dispatch
 (and self-expires after 60s regardless), so any later greetd restart lands
 on the greeter.
 
+### Remote wake from Steam Link (optional)
+
+`game-mode-wol` lets the Steam Link app start game mode while the machine
+sits at the greeter, with nobody at the desk. When Steam Link opens the
+connect screen for a host it has streamed from before but cannot find, it
+sends a Wake-on-LAN magic packet to UDP 9. The listener checks the packet
+names one of this machine's own interface MACs (read from
+`/sys/class/net` on every packet, never configured), applies the same
+greeter checks as the Guide button, and sends the same phone approval,
+showing the sender's address. Once approved, the normal switch runs. Steam
+Link keeps retrying for up to five minutes and connects by itself once
+Steam is up. The listener holds no Steam account state and speaks no Steam
+protocol.
+
+Enable it explicitly; it opens a UDP port on the LAN:
+
+    sudo systemctl enable --now game-mode-wol
+
+Limits:
+
+- Only the Steam Link app sends the packet. Desktop Steam clients and
+  Steam Decks acting as clients never send WOL, so they cannot wake a host
+  sitting at the greeter.
+- Steam Link learns the host's MAC from an earlier session, so the first
+  pairing still has to happen with Steam running on the host.
+- A magic packet is unauthenticated: anyone on the LAN can send one. The
+  phone approval is the gate; the packet only starts it. `AG_DISABLED=1`
+  disables that gate for this trigger too.
+- Repeat packets within 30 seconds of a wake attempt are ignored, so one
+  tap in Steam Link means at most one phone prompt.
+
 ## Filesystem mask
 
 The game session runs Steam inside a bubblewrap sandbox with a curated view
@@ -236,6 +267,7 @@ First-use notes:
 | Where | What |
 |---|---|
 | `/etc/greetd/logs/game-mode.log` | daemon (RUST_LOG=game_mode=debug in the unit) |
+| `/etc/greetd/logs/game-mode-wol.log` | Wake-on-LAN listener: received magic packets and their outcome |
 | `journalctl -u access-gate-verifier` | verifier: requests, push sends (logs FCM status), WebAuthn verifies |
 | `/tmp/steamos-session-select.log` | Switch to Desktop invocations + `steam -shutdown` exit |
 | `/tmp/game-mode-watchdog.log` | idle-config decisions + black-screen watchdog recoveries |

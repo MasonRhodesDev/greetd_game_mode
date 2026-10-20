@@ -55,7 +55,8 @@ installs files only; host provisioning is `sudo game-mode setup`.
 
 %install
 # Root crate bins: game-mode, game-mode-steam-config, game-mode-watchdog,
-# game-mode-steam-shortcut; then the verifier workspace member.
+# game-mode-steam-shortcut, game-mode-dispatch, game-mode-wol; then the
+# verifier workspace member.
 %cargo_install
 (cd verifier && %cargo_install)
 
@@ -71,6 +72,8 @@ install -Dpm0755 greetd/scripts/game-mode-overlay %{buildroot}%{_bindir}/game-mo
 install -Dpm0755 greetd/scripts/steamos-session-select %{buildroot}%{_bindir}/steamos-session-select
 
 install -Dpm0644 dist/game-mode.service %{buildroot}%{_unitdir}/game-mode.service
+%{_unitdir}/game-mode-wol.service
+install -Dpm0644 dist/game-mode-wol.service %{buildroot}%{_unitdir}/game-mode-wol.service
 install -Dpm0644 dist/access-gate-verifier.service %{buildroot}%{_unitdir}/access-gate-verifier.service
 install -Dpm0644 dist/game-mode.sysusers %{buildroot}%{_sysusersdir}/game-mode.conf
 install -Dpm0644 dist/game-mode.tmpfiles %{buildroot}%{_tmpfilesdir}/game-mode.conf
@@ -91,10 +94,10 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 # The access-gate user itself comes from the sysusers.d snippet via systemd's
 # file triggers (no scriptlet needed on current Fedora).
 %post
-%systemd_post game-mode.service access-gate-verifier.service
+%systemd_post game-mode.service game-mode-wol.service access-gate-verifier.service
 
 %preun
-%systemd_preun game-mode.service access-gate-verifier.service
+%systemd_preun game-mode.service game-mode-wol.service access-gate-verifier.service
 
 %postun
 %systemd_postun_with_restart access-gate-verifier.service
@@ -107,6 +110,7 @@ install -Dpm0644 dist/sudoers-greeter-greetd %{buildroot}%{_datadir}/game-mode/s
 %{_bindir}/game-mode-watchdog
 %{_bindir}/game-mode-steam-shortcut
 %{_bindir}/game-mode-dispatch
+%{_bindir}/game-mode-wol
 %{_bindir}/access-gate-verifier
 %{_libexecdir}/game-mode/uwsm-start-hyprland
 %{_libexecdir}/game-mode/hyprland_watchdog

@@ -30,6 +30,10 @@ path = "src/bin/dispatch.rs"
 name = "game-mode-watchdog"
 path = "src/bin/watchdog.rs"
 
+[[bin]]
+name = "game-mode-wol"
+path = "src/bin/wol.rs"
+
 [dependencies]
 anyhow = "1.0"
 dialoguer = "0.11"
