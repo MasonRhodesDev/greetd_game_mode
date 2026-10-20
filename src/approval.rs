@@ -56,10 +56,9 @@ fn load_cfg() -> Cfg {
 
 /// Approval progress feedback, surfaced on the greeter through vigil's
 /// banner channel (best-effort — a greeter without `banner_file` configured
-/// just logs). The icon/duration parameters are relics of the hyprctl-notify
-/// era; vigil's banner is a single persistent line that the next write (or
-/// the entry countdown) replaces.
-fn notify(_icon: u8, _ms: u64, msg: &str) {
+/// just logs). The banner is a single persistent line that the next write
+/// (or the entry countdown) replaces.
+fn notify(msg: &str) {
     info!("greeter: {msg}");
     if let Ok(config) = crate::config::Config::load() {
         let _ = std::fs::write(&config.greeter.banner_file, msg);
@@ -113,7 +112,7 @@ pub fn require_approval_for(prompt: &Prompt) -> bool {
             "verifier socket {} unreachable; refusing game-mode entry",
             cfg.socket
         );
-        notify(3, 8000, "Game mode: approval service unreachable");
+        notify("Game mode: approval service unreachable");
         return false;
     };
     // The verifier answers the final status itself after at most timeout_secs;
@@ -133,7 +132,7 @@ pub fn require_approval_for(prompt: &Prompt) -> bool {
         .is_err()
     {
         warn!("failed to send approval request; refusing game-mode entry");
-        notify(3, 8000, "Game mode: approval service unreachable");
+        notify("Game mode: approval service unreachable");
         return false;
     }
 
@@ -141,47 +140,39 @@ pub fn require_approval_for(prompt: &Prompt) -> bool {
 
     let Some(ack) = read_json_line(&mut reader) else {
         warn!("no ack from verifier; refusing game-mode entry");
-        notify(3, 8000, "Game mode: approval service unreachable");
+        notify("Game mode: approval service unreachable");
         return false;
     };
     info!(
         "approval request {} created; awaiting the phone",
         ack["id"].as_str().unwrap_or("?")
     );
-    notify(
-        1,
-        cfg.timeout_secs * 1000,
-        "Approval sent to your phone — confirm with fingerprint",
-    );
+    notify("Approval sent to your phone — confirm with fingerprint");
 
     let Some(decision) = read_json_line(&mut reader) else {
         warn!("no decision from verifier; refusing game-mode entry");
-        notify(3, 8000, "Game mode: approval service unreachable");
+        notify("Game mode: approval service unreachable");
         return false;
     };
     match decision["status"].as_str().unwrap_or("") {
         "approved" => {
             info!("game-mode entry approved");
-            notify(5, 3000, "Approved — entering game mode");
+            notify("Approved — entering game mode");
             true
         }
         "denied" => {
             warn!("game-mode entry denied");
-            notify(3, 6000, "Game mode entry denied");
+            notify("Game mode entry denied");
             false
         }
         "timeout" | "expired" | "unknown" => {
             warn!("approval timed out");
-            notify(
-                0,
-                6000,
-                &format!("Approval timed out — {}", prompt.retry_hint),
-            );
+            notify(&format!("Approval timed out — {}", prompt.retry_hint));
             false
         }
         other => {
             warn!("unexpected approval status {other:?}");
-            notify(3, 6000, "Game mode: unexpected approval response");
+            notify("Game mode: unexpected approval response");
             false
         }
     }

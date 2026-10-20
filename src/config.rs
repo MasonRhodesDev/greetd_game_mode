@@ -1,7 +1,5 @@
-use crate::paths::PathManager;
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::path::PathBuf;
 
 // Built-in defaults. Anything host-specific can be overridden at runtime via
 // /etc/game-mode/config.toml (written by `game-mode setup`); the daemon and
@@ -46,10 +44,6 @@ pub fn default_game_command() -> Vec<String> {
     .to_vec()
 }
 
-// Default log filter is info; set RUST_LOG (e.g. in game-mode.service) for
-// debug logging at runtime instead of flipping this at build time.
-pub const DEBUG_MODE: bool = false;
-
 /// On-disk shape of /etc/game-mode/config.toml. Every key is optional so a
 /// partial (or absent) file falls back to the built-in defaults; unknown keys
 /// are ignored so old binaries tolerate newer configs.
@@ -83,32 +77,9 @@ struct FileGreeter {
 
 #[derive(Debug)]
 pub struct Config {
-    pub paths: Paths,
-    pub game_mode: GameMode,
-    pub permissions: Permissions,
     pub terminal: Terminal,
     pub session: Session,
     pub greeter: Greeter,
-    path_manager: PathManager,
-}
-
-// Concrete locations live in PathManager (get_greetd_dir() etc.); this only
-// carries the virtual-root override used by tests.
-#[derive(Debug)]
-pub struct Paths {
-    pub virtual_root: String,
-}
-
-#[derive(Debug)]
-pub struct GameMode {
-    pub debug: bool,
-}
-
-// Joystick-only device access is granted by the package's udev rule and the
-// systemd unit's dedicated SupplementaryGroups= entry, not tracked here.
-#[derive(Debug)]
-pub struct Permissions {
-    pub greeter_user: String,
 }
 
 #[derive(Debug)]
@@ -151,13 +122,6 @@ impl Config {
         };
 
         let config = Config {
-            paths: Paths {
-                virtual_root: String::new(),
-            },
-            game_mode: GameMode { debug: DEBUG_MODE },
-            permissions: Permissions {
-                greeter_user: GREETER_USER.to_string(),
-            },
             terminal: Terminal {
                 vt: file.terminal.vt.unwrap_or(VT_NUMBER),
             },
@@ -176,21 +140,9 @@ impl Config {
                     .banner_file
                     .unwrap_or_else(|| BANNER_FILE.to_string()),
             },
-            // Real root, not "": PathManager joins root + greetd_dir, and an
-            // empty root yields a *relative* "etc/greetd" that resolves under
-            // the daemon's working directory instead of /etc/greetd.
-            path_manager: PathManager::new("/", GREETD_DIR),
         };
 
         Ok(config)
-    }
-
-    pub fn is_virtual_mode(&self) -> bool {
-        !self.paths.virtual_root.is_empty()
-    }
-
-    pub fn get_greetd_dir(&self) -> PathBuf {
-        self.path_manager.get_greetd_dir()
     }
 }
 

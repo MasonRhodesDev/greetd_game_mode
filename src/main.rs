@@ -13,24 +13,11 @@ use std::{
 };
 use tracing::{debug, error, info};
 
+/// Log to stdout; game-mode.service appends that to the log file, whose
+/// directory `game-mode setup` creates and hands to the greeter.
 fn setup_logging() -> Result<()> {
-    let config = match Config::load() {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Failed to load config: {}", e);
-            return Err(e);
-        }
-    };
-
-    // Create a subscriber that always logs to stdout
     let subscriber = tracing_subscriber::fmt()
-        .with_env_filter(env::var("RUST_LOG").unwrap_or_else(|_| {
-            if config.game_mode.debug {
-                "game_mode=debug".to_string()
-            } else {
-                "game_mode=info".to_string()
-            }
-        }))
+        .with_env_filter(env::var("RUST_LOG").unwrap_or_else(|_| "game_mode=info".to_string()))
         .with_thread_ids(true)
         .with_file(true)
         .with_line_number(true)
@@ -45,26 +32,6 @@ fn setup_logging() -> Result<()> {
         eprintln!("Failed to set global subscriber: {}", e);
         return Err(e.into());
     }
-
-    // Try to set up file logging, but don't fail if we can't
-    let log_dir = config.get_greetd_dir().join("logs");
-    if let Err(e) = fs::create_dir_all(&log_dir) {
-        eprintln!("Could not create log directory: {}", e);
-    } else if !config.is_virtual_mode() {
-        // Try to set permissions, but don't fail if we can't
-        let greeter_user = &config.permissions.greeter_user;
-        if let Err(e) = std::process::Command::new("chown")
-            .args([
-                "-R",
-                &format!("{}:{}", greeter_user, greeter_user),
-                log_dir.to_str().unwrap(),
-            ])
-            .status()
-        {
-            eprintln!("Could not set log directory permissions: {}", e);
-        }
-    }
-
     Ok(())
 }
 
@@ -131,8 +98,7 @@ fn run_game_mode() -> Result<()> {
     })?;
 
     // Track if menu button has been pressed
-    let menu_pressed = Arc::new(AtomicBool::new(false));
-    let _menu_pressed_clone = menu_pressed.clone();
+    let mut menu_pressed = false;
 
     // Get greetd TTY
     let config = Config::load()?;
@@ -186,13 +152,13 @@ fn run_game_mode() -> Result<()> {
 
             match event {
                 gilrs::EventType::ButtonPressed(Button::Mode, _) => {
-                    if !menu_pressed.load(Ordering::SeqCst) {
-                        menu_pressed.store(true, Ordering::SeqCst);
+                    if !menu_pressed {
+                        menu_pressed = true;
                         info!("Menu button pressed");
                     }
                 }
                 gilrs::EventType::ButtonReleased(Button::Mode, _) => {
-                    menu_pressed.store(false, Ordering::SeqCst);
+                    menu_pressed = false;
                     // Gate entry on a phone passkey approval (fail-closed),
                     // then give the couch a short window to bail out.
                     if approval::require_approval() {

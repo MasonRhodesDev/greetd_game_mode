@@ -13,5 +13,5 @@ jobs:
   ci:
     uses: MasonRhodesDev/packaging-workflows/.github/workflows/rust-ci.yml@v1
     with:
-      # libsystemd/libudev (journal + gilrs) and openssl (verifier)
+      # libudev (gilrs) and openssl (verifier)
       pacman-deps: systemd openssl

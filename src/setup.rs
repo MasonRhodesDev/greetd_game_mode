@@ -80,10 +80,10 @@ pub fn run() -> Result<()> {
     ensure_games_identity(&user, &group)?;
     setup_games_dir(&dir, &group)?;
     apply_sysusers_tmpfiles();
-    setup_greetd_dir(&cfg)?;
-    deploy_greetd_files(&cfg, vt, &user)?;
+    setup_greetd_dir()?;
+    deploy_greetd_files(vt, &user)?;
     verify_greeter_binaries()?;
-    install_sudoers(&cfg.permissions.greeter_user)?;
+    install_sudoers(config::GREETER_USER)?;
     // No config to swap anymore — just make sure no armed flag lingers.
     game_mode_switch::disarm();
     tailscale_approval_env()?;
@@ -203,9 +203,9 @@ fn apply_sysusers_tmpfiles() {
     let _ = Command::new("systemd-tmpfiles").arg("--create").status();
 }
 
-fn setup_greetd_dir(cfg: &Config) -> Result<()> {
-    let greetd_dir = cfg.get_greetd_dir();
-    let greeter = &cfg.permissions.greeter_user;
+fn setup_greetd_dir() -> Result<()> {
+    let greetd_dir = Path::new(config::GREETD_DIR);
+    let greeter = config::GREETER_USER;
     fs::create_dir_all(greetd_dir.join("logs"))?;
     // Do not chgrp / chmod g+rwxs /etc/greetd: without a sticky bit the
     // greeter could unlink and replace config.toml, and root greetd would
@@ -227,8 +227,8 @@ fn setup_greetd_dir(cfg: &Config) -> Result<()> {
 /// Copy the static greeter payload and render the one greetd config into
 /// /etc/greetd. greetd reads it directly, so it must exist with concrete
 /// values — everything else reads /etc/game-mode/config.toml at runtime.
-fn deploy_greetd_files(cfg: &Config, vt: u32, games_user: &str) -> Result<()> {
-    let greetd_dir = cfg.get_greetd_dir();
+fn deploy_greetd_files(vt: u32, games_user: &str) -> Result<()> {
+    let greetd_dir = Path::new(config::GREETD_DIR);
     for name in STATIC_FILES {
         let src = Path::new(SHARE_GREETD).join(name);
         let dst = greetd_dir.join(name);
