@@ -2,14 +2,10 @@
 //! button in the daemon, the Wake-on-LAN listener): is greetd's VT in front,
 //! is the greeter session up, and is nobody else logged in on that VT.
 
+use crate::config::{Config, GREETER_USER};
 use anyhow::Result;
 use serde_json::Value;
-use std::{
-    fs,
-    process::Command,
-    sync::Mutex,
-    time::{Duration, Instant},
-};
+use std::{fs, process::Command};
 use tracing::debug;
 
 /// State of a logind session ("active", "online", "closing", ...). Sessions in
@@ -23,81 +19,95 @@ fn session_state(session_id: &str) -> String {
         .unwrap_or_default()
 }
 
-pub fn is_user_logged_in_on_tty(tty: &str) -> Result<bool> {
+fn sessions() -> Result<Vec<Value>> {
     let output = Command::new("loginctl")
-        .arg("-j")
-        .arg("list-sessions")
+        .args(["-j", "list-sessions"])
         .output()?;
     let sessions: Vec<Value> = serde_json::from_slice(&output.stdout)?;
     debug!(
         "loginctl sessions: {}",
         serde_json::to_string_pretty(&sessions)?
     );
-
-    // Check if there are any live non-greeter login sessions on the specified
-    // TTY. Service-class sessions ("manager", "background", ...) and sessions
-    // stuck in "closing" after logout don't count.
-    let result = sessions.iter().any(|session| {
-        let user = session["user"].as_str().unwrap_or("");
-        let session_tty = session["tty"].as_str().unwrap_or("");
-        let class = session["class"].as_str().unwrap_or("");
-        let id = session["session"].as_str().unwrap_or("");
-        let is_non_greeter = user != "greeter";
-        let is_on_target_tty = session_tty == tty;
-        let is_login_class = class.starts_with("user");
-        let candidate = is_non_greeter && is_on_target_tty && is_login_class;
-        let is_live = candidate && session_state(id) != "closing";
-        debug!("Session {} user: {}, tty: {}, class: {}, is_non_greeter: {}, is_on_target_tty: {}, is_live: {}",
-            id, user, session_tty, class, is_non_greeter, is_on_target_tty, is_live);
-        is_live
-    });
-    debug!("User logged in on TTY {}: {}", tty, result);
-    Ok(result)
+    Ok(sessions)
 }
 
-pub fn is_greeter_active() -> Result<bool> {
-    let output = Command::new("loginctl")
-        .arg("-j")
-        .arg("list-sessions")
-        .output()?;
-    let sessions: Vec<Value> = serde_json::from_slice(&output.stdout)?;
-    debug!(
-        "loginctl sessions: {}",
-        serde_json::to_string_pretty(&sessions)?
-    );
-
-    // Check if greeter session exists and is on the correct TTY
-    let result = sessions.iter().any(|session| {
-        let user = session["user"].as_str().unwrap_or("");
-        let tty = session["tty"].as_str().unwrap_or("");
-        let is_greeter = user == "greeter";
-        let has_tty = !tty.is_empty() && tty != "-";
-        debug!(
-            "Session user: {}, tty: {}, is_greeter: {}, has_tty: {}",
-            user, tty, is_greeter, has_tty
-        );
-        is_greeter && has_tty
-    });
-    debug!("Greeter active: {}", result);
-    Ok(result)
+fn field<'a>(session: &'a Value, key: &str) -> &'a str {
+    session[key].as_str().unwrap_or("")
 }
 
-// Cached active-TTY lookup: called for every gamepad event, so don't hit the
-// filesystem more than once a second.
-static ACTIVE_TTY_CACHE: Mutex<Option<(Instant, String)>> = Mutex::new(None);
+/// Whether the greeter has a session on a TTY.
+fn is_greeter_active(sessions: &[Value]) -> bool {
+    sessions.iter().any(|session| {
+        let tty = field(session, "tty");
+        field(session, "user") == GREETER_USER && !tty.is_empty() && tty != "-"
+    })
+}
 
-pub fn get_active_tty() -> Result<String> {
-    let mut cache = ACTIVE_TTY_CACHE.lock().unwrap();
-    if let Some((at, tty)) = cache.as_ref() {
-        if at.elapsed() < Duration::from_secs(1) {
-            return Ok(tty.clone());
-        }
-    }
-    // /sys/class/tty/tty0/active is world-readable and always current — no
-    // sudo fgconsole subprocess (which could block the event loop) needed.
+/// Whether a live non-greeter login session sits on `tty`. Service-class
+/// sessions ("manager", "background", ...) and sessions stuck in "closing"
+/// after logout don't count.
+fn is_user_logged_in_on_tty(sessions: &[Value], tty: &str) -> bool {
+    sessions.iter().any(|session| {
+        field(session, "user") != GREETER_USER
+            && field(session, "tty") == tty
+            && field(session, "class").starts_with("user")
+            && session_state(field(session, "session")) != "closing"
+    })
+}
+
+/// The VT number in front, from /sys/class/tty/tty0/active (world-readable,
+/// always current, no sudo fgconsole needed).
+fn active_vt() -> Result<String> {
     let raw = fs::read_to_string("/sys/class/tty/tty0/active")?;
-    let tty = raw.trim().trim_start_matches("tty").to_string();
-    debug!("Active TTY number: {}", tty);
-    *cache = Some((Instant::now(), tty.clone()));
-    Ok(tty)
+    Ok(raw.trim().trim_start_matches("tty").to_string())
+}
+
+/// The preconditions for entering game mode: greetd's VT in front, the
+/// greeter up, nobody else logged in on that VT.
+pub fn at_idle_greeter(config: &Config) -> Result<bool> {
+    let vt = config.terminal.vt.to_string();
+    let active = active_vt()?;
+    if active != vt {
+        debug!("greetd VT {vt} is not active (active: {active})");
+        return Ok(false);
+    }
+    let sessions = sessions()?;
+    if !is_greeter_active(&sessions) {
+        debug!("greeter is not active");
+        return Ok(false);
+    }
+    if is_user_logged_in_on_tty(&sessions, &format!("tty{vt}")) {
+        debug!("non-greeter user logged in on tty{vt}");
+        return Ok(false);
+    }
+    Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn greeter_needs_a_tty() {
+        let on_tty = vec![json!({"user": GREETER_USER, "tty": "tty1"})];
+        let manager = vec![json!({"user": GREETER_USER, "tty": "-"})];
+        assert!(is_greeter_active(&on_tty));
+        assert!(!is_greeter_active(&manager));
+        assert!(!is_greeter_active(&[
+            json!({"user": "alice", "tty": "tty1"})
+        ]));
+    }
+
+    #[test]
+    fn only_user_class_sessions_on_the_tty_count() {
+        // "closing" is checked through loginctl, so these sessions avoid it by
+        // failing an earlier condition.
+        let sessions = vec![
+            json!({"user": GREETER_USER, "tty": "tty1", "class": "greeter"}),
+            json!({"user": "alice", "tty": "", "class": "manager"}),
+            json!({"user": "alice", "tty": "tty2", "class": "user"}),
+        ];
+        assert!(!is_user_logged_in_on_tty(&sessions, "tty1"));
+    }
 }

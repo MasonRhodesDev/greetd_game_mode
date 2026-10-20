@@ -2,8 +2,7 @@ mod setup;
 
 use anyhow::Result;
 use game_mode::config::Config;
-use game_mode::session::{get_active_tty, is_greeter_active, is_user_logged_in_on_tty};
-use game_mode::{approval, config, game_mode_switch};
+use game_mode::{approval, config, game_mode_switch, session};
 use gilrs::{Button, Event, Gilrs};
 use std::{
     env, fs,
@@ -97,81 +96,40 @@ fn run_game_mode() -> Result<()> {
         r.store(false, Ordering::SeqCst);
     })?;
 
-    // Track if menu button has been pressed
-    let mut menu_pressed = false;
-
-    // Get greetd TTY
     let config = Config::load()?;
-    let greetd_tty = format!("tty{}", config.terminal.vt);
-    let greetd_vt = config.terminal.vt.to_string();
-    info!("Greetd running on {}", greetd_tty);
+    info!("Greetd running on tty{}", config.terminal.vt);
 
     // Main event loop
     while running.load(Ordering::SeqCst) {
-        // Process gamepad events
-        while let Some(Event {
-            id: _,
-            event,
-            time: _,
-        }) = gilrs.next_event()
-        {
+        while let Some(Event { event, .. }) = gilrs.next_event() {
             debug!("Gamepad event: {:?}", event);
-
-            // Check if greetd TTY is active
-            match get_active_tty() {
-                Ok(active_tty) => {
-                    if active_tty != greetd_vt {
-                        debug!(
-                            "Greetd VT {} is not active (active: {}), ignoring gamepad events",
-                            greetd_vt, active_tty
-                        );
-                        std::thread::sleep(Duration::from_millis(1000));
-                        continue;
-                    }
+            if !matches!(event, gilrs::EventType::ButtonReleased(Button::Mode, _)) {
+                continue;
+            }
+            // Checked per Guide press, not per event: stick movement alone
+            // produces a stream of events.
+            match session::at_idle_greeter(&config) {
+                Ok(true) => {}
+                Ok(false) => {
+                    debug!("Guide released but not at an idle greeter; ignoring");
+                    continue;
                 }
                 Err(e) => {
-                    error!("Failed to get active TTY: {}", e);
-                    std::thread::sleep(Duration::from_millis(1000));
+                    error!("Failed to check greeter state: {e:#}");
                     continue;
                 }
             }
-
-            // Check if we're in the greeter session
-            if !is_greeter_active()? {
-                debug!("Greeter is not active, ignoring gamepad events");
-                std::thread::sleep(Duration::from_millis(1000));
-                continue;
-            }
-
-            // Check if any non-greeter user is logged in
-            if is_user_logged_in_on_tty(&greetd_tty)? {
-                debug!("Non-greeter user logged in, ignoring gamepad events");
-                std::thread::sleep(Duration::from_millis(1000));
-                continue;
-            }
-
-            match event {
-                gilrs::EventType::ButtonPressed(Button::Mode, _) => {
-                    if !menu_pressed {
-                        menu_pressed = true;
-                        info!("Menu button pressed");
-                    }
+            info!("Guide button released at the greeter");
+            // Gate entry on a phone passkey approval (fail-closed),
+            // then give the couch a short window to bail out.
+            if approval::require_approval() {
+                if entry_countdown(&mut gilrs, &config) {
+                    game_mode_switch::switch_to_game_mode(&config)?;
+                } else {
+                    info!("game-mode entry cancelled during countdown");
                 }
-                gilrs::EventType::ButtonReleased(Button::Mode, _) => {
-                    menu_pressed = false;
-                    // Gate entry on a phone passkey approval (fail-closed),
-                    // then give the couch a short window to bail out.
-                    if approval::require_approval() {
-                        if entry_countdown(&mut gilrs, &config) {
-                            game_mode_switch::switch_to_game_mode()?;
-                        } else {
-                            info!("game-mode entry cancelled during countdown");
-                        }
-                    } else {
-                        info!("game-mode entry not approved; staying at greeter");
-                    }
-                }
-                _ => {}
+            } else {
+                info!("game-mode entry not approved; staying at greeter");
             }
         }
         std::thread::sleep(Duration::from_millis(10));

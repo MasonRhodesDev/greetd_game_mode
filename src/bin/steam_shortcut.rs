@@ -7,6 +7,7 @@
 //! Exit: 0 = added or already present (per existing userdata), 1 = bad args
 //! or no userdata found, 2 = parse/write failure.
 
+use game_mode::steam;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -325,20 +326,13 @@ fn main() {
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|| "/".into());
 
-    if fs::read_dir("/proc")
-        .map(|d| {
-            d.filter_map(|e| e.ok()).any(|e| {
-                fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == "steam")
-            })
-        })
-        .unwrap_or(false)
-    {
+    if steam::steam_running() {
         eprintln!("Steam is running — it rewrites shortcuts.vdf on exit. Close it and re-run.");
         std::process::exit(2);
     }
 
     let home = env::var("HOME").unwrap_or_default();
-    let userdata = PathBuf::from(&home).join(".local/share/Steam/userdata");
+    let userdata = steam::steam_root(Path::new(&home)).join("userdata");
     let Ok(users) = fs::read_dir(&userdata) else {
         eprintln!(
             "no Steam userdata at {} (log into Steam once first)",

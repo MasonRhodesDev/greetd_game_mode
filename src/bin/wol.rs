@@ -21,7 +21,7 @@ use anyhow::{Context, Result};
 use game_mode::approval::{self, Prompt};
 use game_mode::config::Config;
 use game_mode::game_mode_switch;
-use game_mode::session::{get_active_tty, is_greeter_active, is_user_logged_in_on_tty};
+use game_mode::session::at_idle_greeter;
 use std::{
     env, fs,
     net::{IpAddr, UdpSocket},
@@ -88,26 +88,6 @@ fn fmt_mac(mac: &Mac) -> String {
     mac.map(|b| format!("{b:02x}")).join(":")
 }
 
-/// Same preconditions the daemon applies to a Guide press: greetd's VT in
-/// front, the greeter up, nobody else logged in on that VT.
-fn at_idle_greeter(config: &Config) -> Result<bool> {
-    let vt = config.terminal.vt.to_string();
-    let active = get_active_tty()?;
-    if active != vt {
-        debug!("greetd VT {vt} is not active (active: {active})");
-        return Ok(false);
-    }
-    if !is_greeter_active()? {
-        debug!("greeter is not active");
-        return Ok(false);
-    }
-    if is_user_logged_in_on_tty(&format!("tty{vt}"))? {
-        debug!("non-greeter user logged in on tty{vt}");
-        return Ok(false);
-    }
-    Ok(true)
-}
-
 fn handle_wake(sender: IpAddr) -> Result<()> {
     let config = Config::load()?;
     if !at_idle_greeter(&config)? {
@@ -121,7 +101,7 @@ fn handle_wake(sender: IpAddr) -> Result<()> {
         retry_hint: "reopen the host in Steam Link to retry",
     };
     if approval::require_approval_for(&prompt) {
-        game_mode_switch::switch_to_game_mode()?;
+        game_mode_switch::switch_to_game_mode(&config)?;
     } else {
         info!("wake from {sender} not approved; staying at greeter");
     }

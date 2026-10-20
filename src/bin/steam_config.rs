@@ -18,13 +18,13 @@
 //! Usage: game-mode-steam-config apply
 //! Exit: 0 applied/no-op, 2 = Steam is running (unsafe to edit), 1 = error.
 
+use game_mode::steam::{self, CEF_FLAG};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 const DIM_SECONDS: &str = "900";
 const SUSPEND_SECONDS_NORMAL: &str = "3600";
-const CEF_FLAG: &str = "--disable-gpu-process-crash-limit";
 
 fn main() -> ExitCode {
     match std::env::args().nth(1).as_deref() {
@@ -37,7 +37,7 @@ fn main() -> ExitCode {
 }
 
 fn apply() -> ExitCode {
-    if steam_running() {
+    if steam::steam_running() {
         eprintln!("steam is running — config.vdf is unsafe to edit; skipping");
         return ExitCode::from(2);
     }
@@ -65,11 +65,11 @@ fn apply() -> ExitCode {
 
     let mut failures = 0;
     for rel in [
-        ".local/share/Steam/config/config.vdf",
+        "config/config.vdf",
         // per-user mirror (the exploration found the same keys here)
-        ".local/share/Steam/userdata/80409974/config/localconfig.vdf",
+        "userdata/80409974/config/localconfig.vdf",
     ] {
-        let path = home.join(rel);
+        let path = steam::steam_root(&home).join(rel);
         if !path.exists() {
             continue;
         }
@@ -83,8 +83,8 @@ fn apply() -> ExitCode {
         }
     }
 
-    let wrap = home.join(".local/share/Steam/ubuntu12_64/steamwebhelper_sniper_wrap.sh");
-    match patch_webhelper_wrap_file(&wrap) {
+    let wrap = steam::webhelper_wrap(&home);
+    match steam::patch_webhelper_wrap_file(&wrap) {
         Ok(true) => println!("patched {} (+{CEF_FLAG})", wrap.display()),
         Ok(false) => println!("up-to-date {}", wrap.display()),
         Err(e) => {
@@ -98,17 +98,6 @@ fn apply() -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
-}
-
-/// Steam-running guard (same approach as game-mode-steam-shortcut).
-fn steam_running() -> bool {
-    fs::read_dir("/proc")
-        .map(|d| {
-            d.filter_map(|e| e.ok()).any(|e| {
-                fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == "steam")
-            })
-        })
-        .unwrap_or(false)
 }
 
 /// Suspend is available iff suspend.target isn't masked and no active
@@ -211,19 +200,6 @@ fn set_kv(block: &str, key: &str, value: &str) -> String {
     }
 }
 
-/// Append the CEF flag to the `exec ./steamwebhelper "$@"` line. No-op when
-/// already present. Returns the new text or None if the exec line is missing.
-pub fn patch_webhelper_wrap(text: &str) -> Option<String> {
-    if text.contains(CEF_FLAG) {
-        return Some(text.to_string()); // already patched (no-op)
-    }
-    let marker = "exec ./steamwebhelper \"$@\"";
-    if !text.contains(marker) {
-        return None;
-    }
-    Some(text.replace(marker, &format!("exec ./steamwebhelper \"$@\" {CEF_FLAG}")))
-}
-
 // ---------------------------------------------------------------------------
 // File wrappers (backup + write)
 // ---------------------------------------------------------------------------
@@ -236,17 +212,6 @@ fn patch_idle_keys_file(path: &Path, dim: &str, suspend: &str) -> Result<bool, S
         return Ok(false);
     }
     fs::copy(path, path.with_extension("vdf.bak-game-mode-idle")).map_err(|e| e.to_string())?;
-    fs::write(path, new).map_err(|e| e.to_string())?;
-    Ok(true)
-}
-
-fn patch_webhelper_wrap_file(path: &Path) -> Result<bool, String> {
-    let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let new = patch_webhelper_wrap(&text)
-        .ok_or_else(|| "exec ./steamwebhelper line not found".to_string())?;
-    if new == text {
-        return Ok(false);
-    }
     fs::write(path, new).map_err(|e| e.to_string())?;
     Ok(true)
 }
@@ -324,20 +289,5 @@ mod tests {
             out.contains("\"Other\"\n\t{\n\t\t\"IdleSuspendACSeconds\"\t\t\"1234\""),
             "{out}"
         );
-    }
-
-    const WRAP: &str = "#!/bin/bash\nexport LD_LIBRARY_PATH=.${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\necho \"<6>exec ./steamwebhelper $*\"\necho \"<remaining-lines-assume-level=7>\"\nexec ./steamwebhelper \"$@\"\n";
-
-    #[test]
-    fn appends_cef_flag_once() {
-        let once = patch_webhelper_wrap(WRAP).unwrap();
-        assert!(once.contains("exec ./steamwebhelper \"$@\" --disable-gpu-process-crash-limit"));
-        let twice = patch_webhelper_wrap(&once).unwrap();
-        assert_eq!(once, twice, "second apply is a no-op");
-    }
-
-    #[test]
-    fn wrap_without_exec_line_is_an_error() {
-        assert!(patch_webhelper_wrap("#!/bin/bash\nnothing\n").is_none());
     }
 }
