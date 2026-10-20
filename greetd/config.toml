@@ -2,11 +2,10 @@
 # rewritten afterwards. Mode switching happens through /run/game-mode/armed
 # (see game-mode-dispatch), not by editing this file (vigil#29).
 
-[general]
-# Don't source /etc/profile + ~/.profile for the game session: the dispatcher
-# execs absolute paths, and skipping shell init (version-manager shims etc.)
-# gets gamescope on screen faster.
-source_profile = false
+# No [general] source_profile = false: greetd applies it to every session,
+# the greeter included. Without /etc/profile the greeter has no PATH, so it
+# drops every session entry whose TryExec is a bare command (e.g. uwsm), and
+# desktop sessions start without the system PATH.
 
 [terminal]
 vt = {{vt}}
