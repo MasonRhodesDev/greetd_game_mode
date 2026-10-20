@@ -290,10 +290,6 @@ Known gotchas:
 - The greeter is vigil, which talks straight to DRM/libinput: no
   compositor sits in the login path at all, so a compositor upgrade cannot
   break it.
-- **Regular login bounces straight back to the greeter** (uwsm-managed
-  sessions): if `/usr/share/wayland-sessions/hyprland.desktop` was hidden to
-  de-duplicate the greeter's session list, use `NoDisplay=true` — uwsm
-  refuses entries marked `Hidden=true`.
 - **Guide button does nothing after boot**: greetd only honours
   `[initial_session]` when `/run/greetd.run` is absent; the daemon removes
   it before each entry (sudoers grant). If entries stop working, check that
