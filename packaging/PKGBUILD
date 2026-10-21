@@ -65,6 +65,7 @@ package() {
   # systemd units + access-gate system user/state dir
   install -Dm644 dist/game-mode.service "$pkgdir/usr/lib/systemd/system/game-mode.service"
   install -Dm644 dist/game-mode-wol.service "$pkgdir/usr/lib/systemd/system/game-mode-wol.service"
+  install -Dm644 dist/greetd-skip-initial.conf "$pkgdir/usr/lib/systemd/system/greetd.service.d/10-game-mode-skip-initial.conf"
   install -Dm644 dist/access-gate-verifier.service "$pkgdir/usr/lib/systemd/system/access-gate-verifier.service"
   install -Dm644 dist/game-mode.sysusers "$pkgdir/usr/lib/sysusers.d/game-mode.conf"
   install -Dm644 dist/game-mode.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/game-mode.conf"

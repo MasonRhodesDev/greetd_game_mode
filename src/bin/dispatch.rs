@@ -20,7 +20,33 @@ use game_mode::output;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 
+/// greetd's runfile (its default `[general] runfile`). greetd runs
+/// `[initial_session]` only while this is absent.
+const GREETD_RUNFILE: &str = "/run/greetd.run";
+
+/// `game-mode-dispatch --pre-greetd`, run as root from greetd.service's
+/// `ExecStartPre`. On a plain boot nothing is armed, so the initial session
+/// would only exec-and-exit; but greetd then holds the greeter back for at
+/// least a second after any session shorter than that (hard-coded in its
+/// `check_children`), and pays a full PAM/logind session open and close for
+/// the games user. Pre-creating the runfile makes greetd start the greeter
+/// directly. When armed (the daemon's restart for an approved entry) the
+/// runfile is left absent so the initial session runs as before.
+fn pre_greetd() {
+    if is_armed(Path::new(ARMED_FILE), ARMED_MAX_AGE_SECS) {
+        return;
+    }
+    if let Err(e) = std::fs::File::create(GREETD_RUNFILE) {
+        // Harmless: greetd falls back to running this dispatcher normally.
+        eprintln!("game-mode-dispatch: cannot create {GREETD_RUNFILE}: {e}");
+    }
+}
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--pre-greetd") {
+        pre_greetd();
+        return;
+    }
     if !is_armed(Path::new(ARMED_FILE), ARMED_MAX_AGE_SECS) {
         // Normal boot: nothing to do, greetd falls through to the greeter.
         return;
