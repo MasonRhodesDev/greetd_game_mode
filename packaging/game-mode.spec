@@ -68,6 +68,7 @@ install -Dpm0755 greetd/scripts/steamos-session-select %{buildroot}%{_bindir}/st
 
 install -Dpm0644 dist/game-mode.service %{buildroot}%{_unitdir}/game-mode.service
 install -Dpm0644 dist/game-mode-wol.service %{buildroot}%{_unitdir}/game-mode-wol.service
+install -Dpm0644 dist/greetd-skip-initial.conf %{buildroot}%{_unitdir}/greetd.service.d/10-game-mode-skip-initial.conf
 install -Dpm0644 dist/access-gate-verifier.service %{buildroot}%{_unitdir}/access-gate-verifier.service
 install -Dpm0644 dist/game-mode.sysusers %{buildroot}%{_sysusersdir}/game-mode.conf
 install -Dpm0644 dist/game-mode.tmpfiles %{buildroot}%{_tmpfilesdir}/game-mode.conf
@@ -113,6 +114,7 @@ install -Dpm0644 dist/binds.example %{buildroot}%{_datadir}/game-mode/binds.exam
 %{_bindir}/steamos-session-select
 %{_unitdir}/game-mode.service
 %{_unitdir}/game-mode-wol.service
+%{_unitdir}/greetd.service.d/10-game-mode-skip-initial.conf
 %{_unitdir}/access-gate-verifier.service
 %{_sysusersdir}/game-mode.conf
 %{_tmpfilesdir}/game-mode.conf
