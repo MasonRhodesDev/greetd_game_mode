@@ -1,9 +1,6 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-// Built-in defaults. Anything host-specific can be overridden at runtime via
-// /etc/game-mode/config.toml (written by `game-mode setup`); the daemon and
-// helpers fall back to these when the file (or a key) is absent.
 pub const CONFIG_TOML: &str = "/etc/game-mode/config.toml";
 pub const GREETD_DIR: &str = "/etc/greetd";
 pub const GREETER_USER: &str = "greeter";
@@ -12,23 +9,11 @@ pub const GAMES_USER: &str = "games";
 pub const GAMES_GROUP: &str = "games";
 pub const GAMES_DIR: &str = "/games";
 
-/// The one-shot arming flag: the daemon writes it just before restarting
-/// greetd, and `game-mode-dispatch` (greetd's permanent `[initial_session]`)
-/// execs the game session only while it is fresh. /run is tmpfs, so a reboot
-/// always disarms.
 pub const ARMED_FILE: &str = "/run/game-mode/armed";
-/// An armed flag older than this is stale (a crash between arming and the
-/// greetd restart) and must not launch a game session.
 pub const ARMED_MAX_AGE_SECS: u64 = 60;
 
-/// Where vigil polls for its status banner (`[greeter] banner_file` in
-/// vigil.toml) — the entry countdown is announced through it. Best-effort:
-/// a greeter without the banner channel just shows no countdown text.
 pub const BANNER_FILE: &str = "/run/vigil/banner";
 
-/// Default game-session argv, matching what `[initial_session]` used to run
-/// directly. `game-mode setup` writes the resolved value into
-/// /etc/game-mode/config.toml where it can be edited.
 pub fn default_game_command() -> Vec<String> {
     [
         "/usr/bin/gamescope",
@@ -44,9 +29,6 @@ pub fn default_game_command() -> Vec<String> {
     .to_vec()
 }
 
-/// On-disk shape of /etc/game-mode/config.toml. Every key is optional so a
-/// partial (or absent) file falls back to the built-in defaults; unknown keys
-/// are ignored so old binaries tolerate newer configs.
 #[derive(Debug, Deserialize, Default)]
 struct FileConfig {
     #[serde(default)]
@@ -87,9 +69,6 @@ pub struct Terminal {
     pub vt: u32,
 }
 
-/// The identity the game session autologs in as, the shared game library
-/// directory (bound read-write into the bwrap home mask), and the argv
-/// `game-mode-dispatch` execs when armed.
 #[derive(Debug)]
 pub struct Session {
     pub user: String,
@@ -98,17 +77,12 @@ pub struct Session {
     pub command: Vec<String>,
 }
 
-/// Greeter integration surfaces (all best-effort).
 #[derive(Debug)]
 pub struct Greeter {
     pub banner_file: String,
 }
 
 impl Config {
-    /// Load configuration: built-in defaults overridden by
-    /// /etc/game-mode/config.toml when present. A missing file is fine
-    /// (pure defaults); a file that exists but fails to parse is an error —
-    /// silently ignoring a typo'd config would misconfigure the session.
     pub fn load() -> Result<Self> {
         Self::load_from(CONFIG_TOML)
     }

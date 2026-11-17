@@ -1,14 +1,3 @@
-# RPM spec for game-mode (repo: greetd_game_mode). Built in COPR from a
-# local SRPM produced by packaging/build-srpm.sh (source tarball from the git
-# tag + vendored cargo deps as Source1 — no rust-*-devel packages needed).
-#
-# Best-effort Fedora support for an Arch-first project: steam lives in
-# RPM Fusion and tailscale in Tailscale's own repo, so both are weak deps;
-# discord and discover-overlay have no Fedora packaging at all (the session
-# degrades gracefully without them).
-#
-# The test suite runs by default; disable for a one-off build with
-# --without check.
 %bcond_without check
 
 Name:           game-mode
@@ -22,17 +11,13 @@ Source1:        %{name}-%{version}-vendor.tar.xz
 
 BuildRequires:  cargo-rpm-macros >= 24
 BuildRequires:  systemd-rpm-macros
-# libsystemd (journal) + libudev (gilrs) + openssl (verifier)
 BuildRequires:  systemd-devel
 BuildRequires:  openssl-devel
 Requires:       bubblewrap
 Requires:       greetd
 Requires:       gamescope
-# vigil is both the greeter and the landing screen for every session exit;
-# the login path has no other compositor in it anymore.
 Requires:       vigil
 %{?systemd_requires}
-# Third-party repos (RPM Fusion / pkgs.tailscale.com) — see the header note.
 Recommends:     steam
 Recommends:     tailscale
 
@@ -44,7 +29,6 @@ passkey approval (WebAuthn verifier + Web Push over tailscale). The package
 installs files only; host provisioning is `sudo game-mode setup`.
 
 %prep
-# -a1 unpacks the vendor tarball (vendor/ at its root) into the source dir.
 %autosetup -p1 -a1
 %cargo_prep -v vendor
 
@@ -54,13 +38,9 @@ installs files only; host provisioning is `sudo game-mode setup`.
 %{cargo_license} > LICENSE.dependencies
 
 %install
-# Root crate bins: game-mode, game-mode-steam-config, game-mode-watchdog,
-# game-mode-steam-shortcut, game-mode-dispatch, game-mode-wol; then the
-# verifier workspace member.
 %cargo_install
 (cd verifier && %cargo_install)
 
-# Session helper scripts (referenced by the greetd session configs)
 install -Dpm0755 greetd/scripts/game-mode-wrapper.sh %{buildroot}%{_bindir}/game-mode-wrapper
 install -Dpm0755 greetd/scripts/game-mode-discord %{buildroot}%{_bindir}/game-mode-discord
 install -Dpm0755 greetd/scripts/game-mode-overlay %{buildroot}%{_bindir}/game-mode-overlay
@@ -75,7 +55,6 @@ install -Dpm0644 dist/game-mode.tmpfiles %{buildroot}%{_tmpfilesdir}/game-mode.c
 install -Dpm0644 dist/70-game-mode-joystick.rules %{buildroot}%{_udevrulesdir}/70-game-mode-joystick.rules
 install -d -m0700 %{buildroot}%{_sharedstatedir}/access-gate
 
-# greetd payload: templates rendered into /etc/greetd by `game-mode setup`
 for f in config.toml bg.png; do
     install -Dpm0644 "greetd/$f" "%{buildroot}%{_datadir}/game-mode/greetd/$f"
 done
@@ -87,8 +66,6 @@ install -Dpm0644 dist/binds.example %{buildroot}%{_datadir}/game-mode/binds.exam
 %cargo_test
 %endif
 
-# The access-gate user itself comes from the sysusers.d snippet via systemd's
-# file triggers (no scriptlet needed on current Fedora).
 %post
 %systemd_post game-mode.service game-mode-wol.service access-gate-verifier.service
 
@@ -100,7 +77,7 @@ install -Dpm0644 dist/binds.example %{buildroot}%{_datadir}/game-mode/binds.exam
 
 %files
 %license LICENSE LICENSE.dependencies
-%doc README.md docs/SUSPEND.md
+%doc README.md
 %{_bindir}/game-mode
 %{_bindir}/game-mode-steam-config
 %{_bindir}/game-mode-watchdog

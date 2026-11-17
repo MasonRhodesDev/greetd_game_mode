@@ -7,7 +7,6 @@ BindsTo=greetd.service
 [Service]
 Type=simple
 WorkingDirectory=/etc/greetd
-# Verifier control-plane settings for the built-in approval gate
 EnvironmentFile=-/etc/game-mode/approval.env
 ExecStart=/usr/bin/game-mode
 Restart=on-failure
@@ -17,13 +16,9 @@ StandardError=append:/etc/greetd/logs/game-mode.log
 User=greeter
 Group=greeter
 
-# Add necessary environment variables
 Environment=RUST_LOG=game_mode=debug
 Environment=RUST_BACKTRACE=1
 
-# Read only udev-classified joystick event devices. The package rule assigns
-# those nodes to this dedicated group; keyboards and display devices remain
-# inaccessible.
 SupplementaryGroups=game-mode-joystick
 
 [Install]

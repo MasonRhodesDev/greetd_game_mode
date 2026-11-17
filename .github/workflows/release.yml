@@ -14,7 +14,6 @@ jobs:
     with:
       spec-name: game-mode
       security: true
-      # vigil (the greeter this package depends on) ships from [mason].
       extra-repos: |
         [mason]
         SigLevel = Required DatabaseRequired

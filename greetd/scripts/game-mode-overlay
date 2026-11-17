@@ -1,14 +1,4 @@
 #!/usr/bin/python3
-"""Launcher for discover-overlay with two runtime fixes (upstream 0.7.8):
-
-1. Its Discord RPC websocket connect uses timeout=0.1 — too tight while
-   Discord is still starting (port listens before the RPC server answers).
-2. Only ConnectionError is caught around the connect, so a
-   WebSocketTimeoutException escapes the GLib callback and silently kills
-   the retry loop — the overlay process stays alive but never connects.
-
-Patching at runtime keeps the pacman-owned package files untouched.
-"""
 import websocket
 
 _orig_create = websocket.create_connection
@@ -29,7 +19,7 @@ _orig_connect = discord_connector.DiscordConnector.connect
 def _safe_connect(self):
     try:
         _orig_connect(self)
-    except Exception:  # any connect failure -> retry, never kill the loop
+    except Exception:
         self.websocket = None
         self.schedule_reconnect()
 

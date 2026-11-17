@@ -1,16 +1,9 @@
-//! Greeter-state checks shared by every game-mode entry trigger (the Guide
-//! button in the daemon, the Wake-on-LAN listener): is greetd's VT in front,
-//! is the greeter session up, and is nobody else logged in on that VT.
-
 use crate::config::{Config, GREETER_USER};
 use anyhow::Result;
 use serde_json::Value;
 use std::{fs, process::Command};
 use tracing::debug;
 
-/// State of a logind session ("active", "online", "closing", ...). Sessions in
-/// "closing" linger after logout while background processes of the user are
-/// still alive (logind KillUserProcesses=no) and must not count as logged in.
 fn session_state(session_id: &str) -> String {
     Command::new("loginctl")
         .args(["show-session", session_id, "--property", "State", "--value"])
@@ -35,7 +28,6 @@ fn field<'a>(session: &'a Value, key: &str) -> &'a str {
     session[key].as_str().unwrap_or("")
 }
 
-/// Whether the greeter has a session on a TTY.
 fn is_greeter_active(sessions: &[Value]) -> bool {
     sessions.iter().any(|session| {
         let tty = field(session, "tty");
@@ -43,9 +35,6 @@ fn is_greeter_active(sessions: &[Value]) -> bool {
     })
 }
 
-/// Whether a live non-greeter login session sits on `tty`. Service-class
-/// sessions ("manager", "background", ...) and sessions stuck in "closing"
-/// after logout don't count.
 fn is_user_logged_in_on_tty(sessions: &[Value], tty: &str) -> bool {
     sessions.iter().any(|session| {
         field(session, "user") != GREETER_USER
@@ -55,15 +44,11 @@ fn is_user_logged_in_on_tty(sessions: &[Value], tty: &str) -> bool {
     })
 }
 
-/// The VT number in front, from /sys/class/tty/tty0/active (world-readable,
-/// always current, no sudo fgconsole needed).
 fn active_vt() -> Result<String> {
     let raw = fs::read_to_string("/sys/class/tty/tty0/active")?;
     Ok(raw.trim().trim_start_matches("tty").to_string())
 }
 
-/// The preconditions for entering game mode: greetd's VT in front, the
-/// greeter up, nobody else logged in on that VT.
 pub fn at_idle_greeter(config: &Config) -> Result<bool> {
     let vt = config.terminal.vt.to_string();
     let active = active_vt()?;
@@ -101,8 +86,6 @@ mod tests {
 
     #[test]
     fn only_user_class_sessions_on_the_tty_count() {
-        // "closing" is checked through loginctl, so these sessions avoid it by
-        // failing an earlier condition.
         let sessions = vec![
             json!({"user": GREETER_USER, "tty": "tty1", "class": "greeter"}),
             json!({"user": "alice", "tty": "", "class": "manager"}),
