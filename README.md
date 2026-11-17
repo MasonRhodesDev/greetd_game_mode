@@ -280,7 +280,7 @@ First-use notes:
 | `/tmp/game-mode-watchdog.log` | idle-config decisions + black-screen watchdog recoveries |
 | `journalctl -u greetd` | session starts/ends |
 
-**Black-screen prevention** (see [`docs/SUSPEND.md`](docs/SUSPEND.md)):
+**Black-screen prevention:**
 `-steamos3` gives Steam console-style idle suspend; if system suspend is
 masked/inhibited the attempt wedges BP black. `game-mode-steam-config` (run by
 the wrapper before Steam) zeroes Steam's idle-suspend exactly when suspend is

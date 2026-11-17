@@ -1,22 +1,3 @@
-//! game-mode-wol: Wake-on-LAN as a second game-mode entry trigger beside the
-//! Guide button (issue #5).
-//!
-//! A machine sitting at greetd is already powered on, so NIC-level WOL has
-//! nothing to do and no Steam is running to answer Remote Play discovery.
-//! The Steam Link app, finding a saved host absent from discovery, sends a
-//! standard magic packet to UDP 9 (unicast to each saved address and
-//! broadcast) when its connect screen opens, then keeps retrying for up to
-//! five minutes and finishes the connect by itself once real Steam answers.
-//! So this listener only has to notice the packet and run the existing
-//! entry path: same greeter-state checks as the daemon, same fail-closed
-//! phone approval, same switch. No Steam protocol, no account state.
-//!
-//! Desktop Steam clients and Steam Decks do not send WOL; only Steam Link
-//! does, and only for a host that has advertised its MAC to it before.
-//!
-//! A magic packet is unauthenticated and anyone on the LAN can send one, so
-//! the phone approval is the actual gate here; the packet only starts it.
-
 use anyhow::{Context, Result};
 use game_mode::approval::{self, Prompt};
 use game_mode::config::Config;
@@ -30,20 +11,14 @@ use std::{
 };
 use tracing::{debug, error, info, warn};
 
-/// The port Steam Link sends its magic packet to.
 const DEFAULT_PORT: u16 = 9;
 
-/// Steam Link sends one packet per saved address plus a broadcast, and the
-/// approval blocks for up to its timeout; matches arriving this soon after
-/// an attempt ends are the same wake, not a new one.
 const COOLDOWN: Duration = Duration::from_secs(30);
 
 const SYSFS_NET: &str = "/sys/class/net";
 
 type Mac = [u8; 6];
 
-/// The target MAC of a magic packet: six `0xFF` bytes, then one MAC repeated
-/// sixteen times. Trailing bytes (a SecureOn password) are ignored.
 fn magic_packet_mac(buf: &[u8]) -> Option<Mac> {
     if buf.len() < 102 || buf[..6] != [0xFF; 6] {
         return None;
@@ -69,8 +44,6 @@ fn parse_mac(text: &str) -> Option<Mac> {
     parts.next().is_none().then_some(mac)
 }
 
-/// MACs of this machine's interfaces, read fresh on every packet so hotplugged
-/// or renamed NICs need no restart and nothing host-specific is configured.
 fn local_macs(net_dir: &Path) -> Vec<Mac> {
     let Ok(entries) = fs::read_dir(net_dir) else {
         return Vec::new();

@@ -1,12 +1,3 @@
-//! Phone passkey approval gate for game-mode entry.
-//!
-//! Talks to the access-gate verifier over its unix control socket with
-//! blocking request/response semantics: write one request line, the verifier
-//! answers `{"id":..}` immediately (the phone has been pushed) and
-//! `{"status":..}` once the phone decides — no polling, no TCP. Progress is
-//! logged (the cage greeter has no banner channel). Fail-closed: every error
-//! path keeps us at the greeter.
-
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -25,8 +16,6 @@ struct Cfg {
     disabled: bool,
 }
 
-/// AG_* settings: process environment wins (systemd EnvironmentFile), with
-/// the env file as fallback so a manual run behaves identically.
 fn load_cfg() -> Cfg {
     let mut file_vars: HashMap<String, String> = HashMap::new();
     if let Ok(text) = fs::read_to_string(ENV_FILE) {
@@ -54,10 +43,6 @@ fn load_cfg() -> Cfg {
     }
 }
 
-/// Approval progress feedback, surfaced on the greeter through vigil's
-/// banner channel (best-effort — a greeter without `banner_file` configured
-/// just logs). The banner is a single persistent line that the next write
-/// (or the entry countdown) replaces.
 fn notify(msg: &str) {
     info!("greeter: {msg}");
     if let Ok(config) = crate::config::Config::load() {
@@ -71,36 +56,25 @@ fn read_json_line(reader: &mut BufReader<UnixStream>) -> Option<Value> {
     serde_json::from_str(line.trim()).ok()
 }
 
-/// What the phone shows for one entry trigger, plus the retry hint the
-/// greeter banner shows when the approval times out.
 pub struct Prompt<'a> {
     pub title: &'a str,
     pub path: &'a str,
     pub retry_hint: &'a str,
 }
 
-/// The Guide-button prompt.
 pub const GUIDE_PROMPT: Prompt<'static> = Prompt {
     title: "Enter game mode?",
     path: "switch this PC into Steam game mode",
     retry_hint: "press the Guide button to retry",
 };
 
-/// Block on a phone passkey approval for the Guide button. See
-/// [`require_approval_for`].
 pub fn require_approval() -> bool {
     require_approval_for(&GUIDE_PROMPT)
 }
 
-/// Block on a phone passkey approval before entering game mode. Returns true
-/// only on an approved decision; deny/timeout/verifier-down all return false
-/// (fail-closed: stay at the greeter).
 pub fn require_approval_for(prompt: &Prompt) -> bool {
     let cfg = load_cfg();
 
-    // Explicit opt-out (AG_DISABLED=1 in approval.env): skip the phone push
-    // entirely. This is the ONLY path that grants entry without the phone —
-    // every failure below still refuses (fail-closed).
     if cfg.disabled {
         warn!("approval gate DISABLED (AG_DISABLED) — entering game mode without phone approval");
         return true;
@@ -115,8 +89,6 @@ pub fn require_approval_for(prompt: &Prompt) -> bool {
         notify("Game mode: approval service unreachable");
         return false;
     };
-    // The verifier answers the final status itself after at most timeout_secs;
-    // pad the read timeout so we always get its answer rather than racing it.
     let _ = stream.set_read_timeout(Some(Duration::from_secs(cfg.timeout_secs + 10)));
 
     let request = serde_json::json!({

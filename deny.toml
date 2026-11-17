@@ -1,23 +1,12 @@
-# cargo-deny configuration — supply-chain gate for a daemon that flips login
-# sessions and a verifier that holds a WebAuthn credential.
-# Run locally with `cargo deny check`; CI runs it on PRs, pushes, and weekly.
-
 [advisories]
 version = 2
 yanked = "deny"
-# Add RUSTSEC IDs here (with a justifying comment) only if an advisory is
-# confirmed not to affect us and a fix isn't yet available.
 ignore = [
     { id = "RUSTSEC-2025-0119", reason = "number_prefix unmaintained; formatting-only dep of indicatif progress bars" },
 ]
 
 [licenses]
 version = 2
-# Set actually present in the tree (see `cargo metadata`): permissive core,
-# plus the file-level-copyleft/weak-copyleft deps we deliberately accept —
-# webauthn-rs and friends (MPL-2.0), the libsystemd bindings
-# (LGPL-2.1-or-later WITH GCC-exception-2.0, dynamic linking only), and
-# webpki-roots' Mozilla CA list (CDLA-Permissive-2.0).
 allow = [
     "MIT",
     "Apache-2.0",
@@ -38,9 +27,6 @@ confidence-threshold = 0.9
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
-# The workspace's own crates are path deps with no version — that's a
-# "wildcard" to cargo-deny. Exempt local path deps; still catch a real
-# `foo = "*"` registry wildcard.
 allow-wildcard-paths = true
 
 [sources]

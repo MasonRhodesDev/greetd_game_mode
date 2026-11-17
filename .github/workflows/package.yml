@@ -13,7 +13,6 @@ jobs:
   arch:
     uses: MasonRhodesDev/packaging-workflows/.github/workflows/arch-package.yml@v1.0.1
     with:
-      # vigil (the greeter this package depends on) ships from [mason].
       extra-repos: |
         [mason]
         SigLevel = Required DatabaseRequired

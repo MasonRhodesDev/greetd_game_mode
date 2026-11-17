@@ -1,28 +1,3 @@
-//! access-gate verifier: WebAuthn relying party for phone-as-identity
-//! approvals of game-mode entry, plus the Web Push sender that nudges the
-//! phone.
-//!
-//! Two planes:
-//!
-//! ```text
-//! - WEB (tcp 127.0.0.1:AG_WEB_PORT, proxied to HTTPS by `tailscale serve`):
-//!     /                      status JSON
-//!     /enroll, /enroll/*     one-time passkey registration (flag-gated)
-//!     /setup, /sw.js, /push/subscribe
-//!                            one-time Web Push subscription (state-gated)
-//!     /approve/<id>, ...     assertion ceremony deciding a request
-//! - CTRL (unix socket AG_CTRL_SOCKET, 0660 owner:group of the service):
-//!     newline-delimited JSON, blocking request/response. The daemon writes
-//!     one request line; the verifier answers `{"id":..}` immediately and
-//!     `{"status":..}` once the phone decides (or the wait times out).
-//!     No polling, and unlike a localhost TCP port the socket permissions
-//!     limit who can create requests at all.
-//! ```
-//!
-//! Trust = the single enrolled passkey (phone secure element + biometric,
-//! user verification required on every assertion). The push notification
-//! carries no authority.
-
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -89,7 +64,7 @@ struct ApprovalRequest {
     exe: String,
     path: String,
     group: String,
-    status: String, // pending | approved | denied | timeout
+    status: String,
     created: Instant,
     auth: Option<PasskeyAuthentication>,
 }
@@ -147,14 +122,6 @@ impl App {
     }
 }
 
-// ---------------------------------------------------------------------------
-// VAPID key handling
-// ---------------------------------------------------------------------------
-
-/// Load the VAPID key, generating a fresh one when missing or unparsable.
-/// A fresh key invalidates any existing subscription (the browser's
-/// applicationServerKey no longer matches), so the subscription is dropped,
-/// which re-opens the /setup page.
 fn load_or_generate_vapid(data_dir: &Path) -> Result<SecretKey> {
     let key_file = data_dir.join("vapid_private.pem");
     if let Ok(pem) = fs::read_to_string(&key_file) {
@@ -176,10 +143,6 @@ fn load_or_generate_vapid(data_dir: &Path) -> Result<SecretKey> {
     info!("generated new VAPID key");
     Ok(key)
 }
-
-// ---------------------------------------------------------------------------
-// Web Push (best-effort, never blocks a ceremony)
-// ---------------------------------------------------------------------------
 
 fn send_push(app: &App, payload: Value) {
     let Ok(sub_text) = fs::read_to_string(app.sub_file()) else {
@@ -209,9 +172,6 @@ fn send_push(app: &App, payload: Value) {
         msg.set_ttl(app.cfg.request_ttl as u32);
         let msg = msg.build().map_err(|e| anyhow!("message build: {e:?}"))?;
 
-        // Send manually (instead of the crate's async clients) so the request
-        // carries `Urgency: high` — Android defers normal-priority pushes on
-        // a dozing phone, and approvals must wake it.
         let mut req = ureq::post(&msg.endpoint.to_string())
             .timeout(Duration::from_secs(10))
             .set("TTL", &msg.ttl.to_string())
@@ -243,10 +203,6 @@ fn send_push(app: &App, payload: Value) {
         Err(e) => warn!("web push failed: {e}"),
     }
 }
-
-// ---------------------------------------------------------------------------
-// Control plane: unix socket, blocking request/response
-// ---------------------------------------------------------------------------
 
 fn new_request_id() -> String {
     let mut bytes = [0u8; 9];
@@ -298,7 +254,6 @@ fn handle_ctrl(stream: UnixStream, app: Arc<App>) -> Result<()> {
     writer.write_all(format!("{}\n", json!({ "id": rid })).as_bytes())?;
     writer.flush()?;
 
-    // Block until the web plane decides or the wait expires.
     let deadline = Instant::now() + Duration::from_secs(wait_secs);
     let final_status;
     {
@@ -334,7 +289,6 @@ fn run_ctrl(app: Arc<App>) -> Result<()> {
     }
     let _ = fs::remove_file(sock);
     let listener = UnixListener::bind(sock).with_context(|| format!("bind {sock:?}"))?;
-    // group-rw: the service's group (e.g. greeter) may create requests
     fs::set_permissions(sock, fs::Permissions::from_mode(0o660))?;
     info!("control listening on {sock:?}");
     for stream in listener.incoming() {
@@ -352,10 +306,6 @@ fn run_ctrl(app: Arc<App>) -> Result<()> {
     }
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// Web plane
-// ---------------------------------------------------------------------------
 
 fn header(k: &str, v: &str) -> Header {
     Header::from_bytes(k.as_bytes(), v.as_bytes()).unwrap()
@@ -426,7 +376,6 @@ fn handle_web(mut req: tiny_http::Request, app: Arc<App>) {
             }),
         ),
 
-        // ----- enrollment (one-time, flag-gated) -----
         (Method::Get, ["enroll"]) => {
             if !app.enroll_allowed() {
                 respond_text(
@@ -494,7 +443,6 @@ fn handle_web(mut req: tiny_http::Request, app: Arc<App>) {
             }
         }
 
-        // ----- push setup (one-time, state-gated) -----
         (Method::Get, ["sw.js"]) => {
             let resp = Response::from_string(SW_JS)
                 .with_header(header("Content-Type", "application/javascript"));
@@ -545,7 +493,6 @@ fn handle_web(mut req: tiny_http::Request, app: Arc<App>) {
             respond_json(req, 200, json!({"ok": true}));
         }
 
-        // ----- approval ceremony -----
         (Method::Get, ["approve", rid]) => {
             let requests = app.requests.lock().unwrap();
             let Some(r) = requests.get(*rid) else {
@@ -653,10 +600,6 @@ fn handle_web(mut req: tiny_http::Request, app: Arc<App>) {
         _ => respond_text(req, 404, ""),
     }
 }
-
-// ---------------------------------------------------------------------------
-// Inline pages (no external assets)
-// ---------------------------------------------------------------------------
 
 const JS_HELPERS: &str = r#"
 function b64uToBuf(s){s=s.replace(/-/g,'+').replace(/_/g,'/');const p=s.length%4;if(p)s+='='.repeat(4-p);
@@ -773,7 +716,6 @@ self.addEventListener('notificationclick', e => {
 });
 "#;
 
-// Helpers are spliced into the page templates once, at first use.
 fn page(tmpl: &str) -> String {
     tmpl.replace("//HELPERS//", JS_HELPERS)
 }
@@ -827,7 +769,6 @@ fn main() -> Result<()> {
     }
 }
 
-// Pre-rendered pages
 static PAGE_ENROLL: once_cell_lite::Lazy<String> =
     once_cell_lite::Lazy::new(|| page(PAGE_ENROLL_TMPL));
 static PAGE_SETUP: once_cell_lite::Lazy<String> =
@@ -835,7 +776,6 @@ static PAGE_SETUP: once_cell_lite::Lazy<String> =
 static PAGE_APPROVE: once_cell_lite::Lazy<String> =
     once_cell_lite::Lazy::new(|| page(PAGE_APPROVE_TMPL));
 
-/// Minimal Lazy<T> (std-only) so we don't pull once_cell just for three pages.
 mod once_cell_lite {
     use std::sync::OnceLock;
 

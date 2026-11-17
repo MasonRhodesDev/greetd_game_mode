@@ -1,15 +1,8 @@
-//! Which display the game session should use. gamescope picks an output on
-//! its own; `-O` gives it a preference list instead. The rule: 16:9 outputs
-//! first (Big Picture's native shape, and what TVs are), then the highest
-//! resolution, so the list still falls back cleanly when a display is off.
-
 use std::fs;
 use std::path::Path;
 
 const SYSFS_DRM: &str = "/sys/class/drm";
 
-/// A connected output: its connector name as gamescope spells it (`DP-1`)
-/// and its largest mode.
 #[derive(Debug, PartialEq)]
 struct Output {
     connector: String,
@@ -25,12 +18,10 @@ impl Output {
 
 fn parse_mode(line: &str) -> Option<(u32, u32)> {
     let (w, h) = line.trim().split_once('x')?;
-    // Interlaced modes are listed as e.g. "1920x1080i".
     let h = h.trim_end_matches(|c: char| !c.is_ascii_digit());
     Some((w.parse().ok()?, h.parse().ok()?))
 }
 
-/// Connected outputs under a DRM sysfs dir (`card1-DP-1/status`, `/modes`).
 fn connected_outputs(drm: &Path) -> Vec<Output> {
     let Ok(entries) = fs::read_dir(drm) else {
         return Vec::new();
@@ -39,7 +30,6 @@ fn connected_outputs(drm: &Path) -> Vec<Output> {
         .flatten()
         .filter_map(|e| {
             let name = e.file_name().to_string_lossy().into_owned();
-            // card1-DP-1 -> DP-1; skips bare cards and render nodes.
             let (card, connector) = name.split_once('-')?;
             if !card.starts_with("card") {
                 return None;
@@ -67,15 +57,11 @@ fn preference(mut outputs: Vec<Output>) -> Vec<String> {
     outputs.into_iter().map(|o| o.connector).collect()
 }
 
-/// Connected outputs in preference order, comma-joined for gamescope's
-/// `-O`. None when no connected output is visible.
 pub fn preferred_outputs() -> Option<String> {
     let order = preference(connected_outputs(Path::new(SYSFS_DRM)));
     (!order.is_empty()).then(|| order.join(","))
 }
 
-/// Insert `-O <outputs>` into a gamescope argv unless it already names its
-/// outputs. Other programs are left alone.
 pub fn with_preferred_outputs(command: &[String], outputs: &str) -> Vec<String> {
     let is_gamescope = command
         .first()
@@ -172,7 +158,6 @@ mod tests {
         ] {
             assert_eq!(with_preferred_outputs(&cmd, "DP-1"), cmd);
         }
-        // An -O after "--" belongs to the child, not gamescope.
         let child = argv(&["gamescope", "--", "x", "-O"]);
         assert_eq!(
             with_preferred_outputs(&child, "DP-1"),

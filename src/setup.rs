@@ -1,25 +1,3 @@
-//! `game-mode setup` — one-time host provisioning.
-//!
-//! The package installs files; this subcommand does everything that is
-//! host-specific (the job the old install.sh mixed into file installation):
-//!
-//!   - prompts for the game-session user/group/library dir and writes the
-//!     runtime config /etc/game-mode/config.toml
-//!   - creates the games user/group and the shared game library directory
-//!   - applies the packaged sysusers/tmpfiles snippets (access-gate user,
-//!     /var/lib/access-gate)
-//!   - creates the greetd logs dir (config.toml stays root-owned)
-//!   - renders the one static greetd config from /usr/share/game-mode/greetd
-//!     into /etc/greetd/config.toml (greetd needs concrete values on disk);
-//!     mode switching never rewrites it (vigil#29)
-//!   - renders and installs the sudoers grant for the greeter user
-//!   - checks tailscale and writes /etc/game-mode/approval.env (the WebAuthn
-//!     verifier's RP ID / origin come from the tailnet FQDN)
-//!   - enables the systemd units
-//!
-//! Idempotent: re-run it after upgrades or to reconfigure (existing answers
-//! in config.toml become the new defaults).
-
 use anyhow::{bail, Context, Result};
 use dialoguer::{Confirm, Input};
 use serde_json::Value;
@@ -38,10 +16,7 @@ const SUDOERS_PATH: &str = "/etc/sudoers.d/greeter-greetd";
 const ETC_DIR: &str = "/etc/game-mode";
 const APPROVAL_ENV: &str = "/etc/game-mode/approval.env";
 
-/// Files copied verbatim from /usr/share/game-mode/greetd to /etc/greetd.
 const STATIC_FILES: &[&str] = &["bg.png"];
-/// The single static greetd config, rendered ({{vt}}, {{games_user}}) into
-/// /etc/greetd/config.toml. Mode switching never rewrites it (vigil#29).
 const TEMPLATE_FILES: &[&str] = &["config.toml"];
 
 pub fn run() -> Result<()> {
@@ -50,8 +25,6 @@ pub fn run() -> Result<()> {
     }
     let interactive = std::io::stdin().is_terminal();
 
-    // Existing config (or defaults) seeds the prompts, so re-runs are quiet
-    // confirmations rather than re-interrogations.
     let cfg = Config::load()?;
     let mut user = cfg.session.user.clone();
     let mut group = cfg.session.group.clone();
@@ -84,7 +57,6 @@ pub fn run() -> Result<()> {
     deploy_greetd_files(vt, &user)?;
     verify_greeter_binaries()?;
     install_sudoers(config::GREETER_USER)?;
-    // No config to swap anymore — just make sure no armed flag lingers.
     game_mode_switch::disarm();
     tailscale_approval_env()?;
     enable_services(interactive)?;
@@ -103,7 +75,6 @@ fn run_checked(program: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-/// Copy `path` to `{path}.bak` when it exists and differs from `new_contents`.
 fn backup_if_changed(path: &Path, new_contents: &[u8]) -> Result<()> {
     if !path.exists() {
         return Ok(());
@@ -190,14 +161,10 @@ fn ensure_games_identity(user: &str, group: &str) -> Result<()> {
 fn setup_games_dir(dir: &str, group: &str) -> Result<()> {
     fs::create_dir_all(dir).with_context(|| format!("failed to create {dir}"))?;
     run_checked("chgrp", &["-R", group, dir])?;
-    // setgid + group-writable so everything created inside stays shared.
     run_checked("chmod", &["-R", "g+rwxs", dir])?;
     Ok(())
 }
 
-/// Apply the packaged sysusers/tmpfiles snippets (access-gate system user,
-/// /var/lib/access-gate). Normally the package manager already ran these;
-/// re-applying is idempotent and covers manual installs.
 fn apply_sysusers_tmpfiles() {
     let _ = Command::new("systemd-sysusers").status();
     let _ = Command::new("systemd-tmpfiles").arg("--create").status();
@@ -207,9 +174,6 @@ fn setup_greetd_dir() -> Result<()> {
     let greetd_dir = Path::new(config::GREETD_DIR);
     let greeter = config::GREETER_USER;
     fs::create_dir_all(greetd_dir.join("logs"))?;
-    // Do not chgrp / chmod g+rwxs /etc/greetd: without a sticky bit the
-    // greeter could unlink and replace config.toml, and root greetd would
-    // then execute that session command. Keep the directory root-owned.
     run_checked("chown", &["root:root", greetd_dir.to_str().unwrap()])?;
     run_checked("chmod", &["755", greetd_dir.to_str().unwrap()])?;
     let logs = greetd_dir.join("logs");
@@ -224,9 +188,6 @@ fn setup_greetd_dir() -> Result<()> {
     Ok(())
 }
 
-/// Copy the static greeter payload and render the one greetd config into
-/// /etc/greetd. greetd reads it directly, so it must exist with concrete
-/// values — everything else reads /etc/game-mode/config.toml at runtime.
 fn deploy_greetd_files(vt: u32, games_user: &str) -> Result<()> {
     let greetd_dir = Path::new(config::GREETD_DIR);
     for name in STATIC_FILES {
@@ -241,9 +202,6 @@ fn deploy_greetd_files(vt: u32, games_user: &str) -> Result<()> {
             .with_context(|| format!("failed to read template {}", src.display()))?
             .replace("{{vt}}", &vt.to_string())
             .replace("{{games_user}}", games_user);
-        // Write-then-rename: config.toml is a symlink on hosts provisioned by
-        // the old symlink-swapping setup, and writing through it would
-        // clobber whatever it points at instead of replacing it.
         let dst = greetd_dir.join(name);
         backup_if_changed(&dst, text.as_bytes())?;
         let tmp = greetd_dir.join(format!("{name}.new"));
@@ -252,8 +210,6 @@ fn deploy_greetd_files(vt: u32, games_user: &str) -> Result<()> {
         run_checked("chown", &["root:root", dst.to_str().unwrap()])?;
         fs::set_permissions(&dst, fs::Permissions::from_mode(0o644))?;
     }
-    // Legacy artifacts of the symlink-swapping era; stale copies would only
-    // mislead. Best-effort.
     for stale in ["config_default.toml", "game_mode_login.toml"] {
         let _ = fs::remove_file(greetd_dir.join(stale));
     }
@@ -261,10 +217,6 @@ fn deploy_greetd_files(vt: u32, games_user: &str) -> Result<()> {
     Ok(())
 }
 
-/// Sanity-check the login path's binaries: vigil (the greeter and the
-/// fallback for every session exit), systemd-cat (wraps both greetd session
-/// commands so their stderr reaches the journal), and gamescope (the armed
-/// dispatch path).
 fn verify_greeter_binaries() -> Result<()> {
     for bin in [
         "/usr/bin/vigil",
@@ -278,8 +230,6 @@ fn verify_greeter_binaries() -> Result<()> {
     Ok(())
 }
 
-/// Render the sudoers grant (greetd restart and runfile removal) from the
-/// shipped template and install it via a visudo -c gate.
 fn install_sudoers(greeter_user: &str) -> Result<()> {
     let text = fs::read_to_string(SUDOERS_TEMPLATE)
         .with_context(|| format!("failed to read {SUDOERS_TEMPLATE}"))?
@@ -297,10 +247,6 @@ fn install_sudoers(greeter_user: &str) -> Result<()> {
     Ok(())
 }
 
-/// The verifier's WebAuthn RP ID / origin come from the tailnet FQDN, so
-/// tailscale must be up and logged in for the approval gate to work. Missing
-/// tailscale degrades to a warning: everything else still provisions, and the
-/// daemon fails closed (no approvals possible) until this is completed.
 fn tailscale_approval_env() -> Result<()> {
     let out = match Command::new("tailscale")
         .args(["status", "--json"])
@@ -348,7 +294,6 @@ fn tailscale_approval_env() -> Result<()> {
         println!("Wrote {APPROVAL_ENV} (RP ID {fqdn})");
     }
 
-    // WebAuthn needs a real TLS origin; serve the verifier over the tailnet.
     let served = Command::new("tailscale")
         .args(["serve", "--bg", "--https=443", "http://127.0.0.1:8730"])
         .status()
@@ -370,8 +315,6 @@ fn enable_services(interactive: bool) -> Result<()> {
         println!("access-gate-verifier not started (no {APPROVAL_ENV} yet)");
     }
 
-    // Restarting greetd respawns the greeter on its VT (active desktop
-    // sessions keep running). Only do it when the operator says so.
     let restart = interactive
         && Confirm::new()
             .with_prompt("Restart greetd now to apply the new greeter config?")

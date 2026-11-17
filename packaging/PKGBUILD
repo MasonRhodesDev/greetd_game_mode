@@ -1,16 +1,11 @@
 # Maintainer: Mason Rhodes <mrhodesdev@gmail.com>
-#
-# Arch package for game-mode (repo: greetd_game_mode). Same payload as the
-# Fedora RPM (packaging/game-mode.spec); all paths are identical across both
-# distros. The package installs files only — host provisioning (games user,
-# greetd config swap, sudoers, tailscale) is `sudo game-mode setup`.
 
 pkgname=game-mode
 pkgver=0.2.4
 pkgrel=1
 pkgdesc="Console-style greetd game mode: gamepad-triggered Steam Big Picture session with passkey approval"
 arch=('x86_64')
-options=(!lto)  # ring's C objects become GCC LTO bitcode that ld.lld cannot read
+options=(!lto)
 url="https://github.com/MasonRhodesDev/greetd_game_mode"
 license=('MIT')
 install="$pkgname.install"
@@ -47,7 +42,6 @@ check() {
 package() {
   cd "$pkgname-$pkgver"
 
-  # Rust binaries (game_mode workspace + verifier)
   install -Dm755 target/release/game-mode "$pkgdir/usr/bin/game-mode"
   install -Dm755 target/release/game-mode-steam-config "$pkgdir/usr/bin/game-mode-steam-config"
   install -Dm755 target/release/game-mode-watchdog "$pkgdir/usr/bin/game-mode-watchdog"
@@ -56,13 +50,11 @@ package() {
   install -Dm755 target/release/game-mode-wol "$pkgdir/usr/bin/game-mode-wol"
   install -Dm755 target/release/access-gate-verifier "$pkgdir/usr/bin/access-gate-verifier"
 
-  # Session helper scripts (referenced by the greetd session configs)
   install -Dm755 greetd/scripts/game-mode-wrapper.sh "$pkgdir/usr/bin/game-mode-wrapper"
   install -Dm755 greetd/scripts/game-mode-discord "$pkgdir/usr/bin/game-mode-discord"
   install -Dm755 greetd/scripts/game-mode-overlay "$pkgdir/usr/bin/game-mode-overlay"
   install -Dm755 greetd/scripts/steamos-session-select "$pkgdir/usr/bin/steamos-session-select"
 
-  # systemd units + access-gate system user/state dir
   install -Dm644 dist/game-mode.service "$pkgdir/usr/lib/systemd/system/game-mode.service"
   install -Dm644 dist/game-mode-wol.service "$pkgdir/usr/lib/systemd/system/game-mode-wol.service"
   install -Dm644 dist/greetd-skip-initial.conf "$pkgdir/usr/lib/systemd/system/greetd.service.d/10-game-mode-skip-initial.conf"
@@ -71,7 +63,6 @@ package() {
   install -Dm644 dist/game-mode.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/game-mode.conf"
   install -Dm644 dist/70-game-mode-joystick.rules "$pkgdir/usr/lib/udev/rules.d/70-game-mode-joystick.rules"
 
-  # greetd payload: templates rendered into /etc/greetd by `game-mode setup`
   for f in config.toml bg.png; do
     install -Dm644 "greetd/$f" "$pkgdir/usr/share/game-mode/greetd/$f"
   done
@@ -80,5 +71,4 @@ package() {
 
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
-  install -Dm644 docs/SUSPEND.md "$pkgdir/usr/share/doc/$pkgname/SUSPEND.md"
 }

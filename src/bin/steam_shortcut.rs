@@ -1,12 +1,3 @@
-//! Idempotently add a non-Steam shortcut to every Steam user's
-//! userdata/<id>/config/shortcuts.vdf (binary VDF). Steam must be closed —
-//! it rewrites the file from memory on exit.
-//!
-//! Usage: game-mode-steam-shortcut --name Discord --exe /usr/bin/game-mode-discord
-//!
-//! Exit: 0 = added or already present (per existing userdata), 1 = bad args
-//! or no userdata found, 2 = parse/write failure.
-
 use game_mode::steam;
 use std::env;
 use std::fs;
@@ -47,13 +38,10 @@ fn put_int(out: &mut Vec<u8>, key: &str, value: u32) {
     out.extend_from_slice(&value.to_le_bytes());
 }
 
-/// Steam's classic non-Steam appid: crc32(Exe + AppName) with the top bit set.
-/// Grid art (incl. the square `<appid>_icon.png`) keys off this value.
 fn shortcut_appid(exe_quoted: &str, name: &str) -> u32 {
     crc32(format!("{exe_quoted}{name}").as_bytes()) | 0x8000_0000
 }
 
-/// Serialize one shortcut entry map keyed by its index.
 fn entry_bytes(index: usize, name: &str, exe_quoted: &str, start_dir_quoted: &str) -> Vec<u8> {
     let appid = shortcut_appid(exe_quoted, name);
 
@@ -69,7 +57,7 @@ fn entry_bytes(index: usize, name: &str, exe_quoted: &str, start_dir_quoted: &st
     put_string(&mut e, "ShortcutPath", "");
     put_string(&mut e, "LaunchOptions", "");
     put_int(&mut e, "IsHidden", 0);
-    put_int(&mut e, "AllowDesktopConfig", 1); // Steam Input desktop layout
+    put_int(&mut e, "AllowDesktopConfig", 1);
     put_int(&mut e, "AllowOverlay", 1);
     put_int(&mut e, "OpenVR", 0);
     put_int(&mut e, "Devkit", 0);
@@ -77,16 +65,14 @@ fn entry_bytes(index: usize, name: &str, exe_quoted: &str, start_dir_quoted: &st
     put_int(&mut e, "DevkitOverrideAppID", 0);
     put_int(&mut e, "LastPlayTime", 0);
     put_string(&mut e, "FlatpakAppID", "");
-    // empty tags map
     e.push(TYPE_MAP);
     e.extend_from_slice(b"tags");
     e.push(0);
     e.push(END_MAP);
-    e.push(END_MAP); // close entry
+    e.push(END_MAP);
     e
 }
 
-/// Byte span (start..end) of a string VALUE inside the buffer (excl. NUL).
 type Span = (usize, usize);
 
 #[derive(Default)]
@@ -116,10 +102,9 @@ impl<'a> Scanner<'a> {
         }
         let s = String::from_utf8_lossy(&self.buf[start..self.pos]).into_owned();
         let span = (start, self.pos);
-        self.pos += 1; // NUL
+        self.pos += 1;
         Ok((s, span))
     }
-    /// Consume a map body (after its key), recording appname/Exe/StartDir.
     fn map_body(&mut self, info: &mut EntryInfo) -> Result<(), String> {
         loop {
             match self.byte()? {
@@ -163,7 +148,6 @@ impl<'a> Scanner<'a> {
     }
 }
 
-/// Parse shortcuts.vdf into per-entry info.
 fn parse(buf: &[u8]) -> Result<Vec<EntryInfo>, String> {
     let mut s = Scanner { buf, pos: 0 };
     if s.byte()? != TYPE_MAP {
@@ -176,7 +160,7 @@ fn parse(buf: &[u8]) -> Result<Vec<EntryInfo>, String> {
     let mut entries = Vec::new();
     loop {
         match s.byte()? {
-            END_MAP => break, // end of "shortcuts"
+            END_MAP => break,
             TYPE_MAP => {
                 let _ = s.cstring()?;
                 let mut info = EntryInfo::default();
@@ -189,8 +173,6 @@ fn parse(buf: &[u8]) -> Result<Vec<EntryInfo>, String> {
     Ok(entries)
 }
 
-/// Replace byte spans (value bytes, excl. NUL) with new strings. Spans must
-/// be disjoint; applied back-to-front so offsets stay valid.
 fn splice(buf: &[u8], mut edits: Vec<(Span, String)>) -> Vec<u8> {
     edits.sort_by_key(|((start, _), _)| std::cmp::Reverse(*start));
     let mut out = buf.to_vec();
@@ -213,7 +195,6 @@ fn add_to_file(
     let buf = match fs::read(path) {
         Ok(b) if !b.is_empty() => b,
         _ => {
-            // No shortcuts yet: create the whole file.
             let mut out = Vec::new();
             out.push(TYPE_MAP);
             out.extend_from_slice(b"shortcuts");
@@ -229,8 +210,6 @@ fn add_to_file(
     let entries = parse(&buf)?;
 
     if let Some(existing) = entries.iter().find(|e| e.name.eq_ignore_ascii_case(name)) {
-        // Same name: make sure it points at our exe. The appid field is left
-        // untouched so grid art and controller configs stay attached.
         let current_exe = existing
             .exe_span
             .map(|(s, e)| String::from_utf8_lossy(&buf[s..e]).into_owned())
@@ -265,9 +244,6 @@ fn add_to_file(
     Ok(("added", new_appid))
 }
 
-/// Copy `src` to `<grid>/<appid>_icon.png` (the square library icon), unless
-/// an identical file is already there. Returns the destination path; the
-/// caller points the shortcut's icon field at it. Returns Ok((path, written)).
 fn write_icon_art(config_dir: &Path, appid: u32, src: &Path) -> Result<(PathBuf, bool), String> {
     let grid = config_dir.join("grid");
     fs::create_dir_all(&grid).map_err(|e| e.to_string())?;
@@ -280,9 +256,6 @@ fn write_icon_art(config_dir: &Path, appid: u32, src: &Path) -> Result<(PathBuf,
     Ok((dst, true))
 }
 
-/// Point a shortcut's `icon` field at `icon_path` (UNQUOTED — gamepadui opens
-/// the path literally, so quotes around it break the icon). Returns Ok(true)
-/// if changed.
 fn set_icon_field(vdf: &Path, name: &str, icon_path: &str) -> Result<bool, String> {
     let buf = fs::read(vdf).map_err(|e| e.to_string())?;
     let entries = parse(&buf)?;
@@ -350,10 +323,6 @@ fn main() {
         match add_to_file(&vdf, &name, &exe, &start_dir) {
             Ok((outcome, appid)) => {
                 println!("{name:?} shortcut {outcome} for Steam user {id}");
-                // Square library icon: write a real PNG to grid/<appid>_icon.png
-                // AND point the shortcut's icon field at it, UNQUOTED. gamepadui
-                // reads the icon field and opens the path literally — quotes
-                // around it (Steam's/SRM's default) make it blank grey.
                 if let Some(ref src) = icon {
                     match write_icon_art(&config_dir, appid, src) {
                         Ok((dst, written)) => {

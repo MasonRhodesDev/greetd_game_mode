@@ -1,14 +1,4 @@
 #!/bin/bash
-# Steam gamepadui "Switch to Desktop" hook (SteamOS convention).
-# Steam execs `steamos-session-select <session>` from PATH when the user picks
-# Switch to Desktop in the Big Picture power menu; without this script the
-# option is a silent no-op.
-#
-# In this setup leaving game mode = ending the session: steam exits ->
-# gamescope exits -> greetd falls through to [default_session] (the regreet
-# login greeter) in desktop mode. Installed to /usr/bin by the package.
-#
-# Logs to /tmp (shared into the bwrap sandbox) for debuggability.
 {
     echo "$(date -Is) steamos-session-select invoked: args='$*' user=$(id -un)"
     steam -shutdown

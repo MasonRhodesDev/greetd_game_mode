@@ -1,23 +1,3 @@
-//! game-mode-steam-config: state-aware Steam idle-power configuration +
-//! steamwebhelper crash-limit flag, applied at game-mode session start
-//! (before Steam launches).
-//!
-//! Why: with `-steamos3` Steam runs console-style idle management and will
-//! call logind Suspend after `IdleSuspendACSeconds`. If suspend is unavailable
-//! (target masked / sleep-blocked — e.g. while this box tethers another
-//! server), the refusal wedges Big Picture black. So:
-//!   suspend available  → IdleSuspendACSeconds=3600  (normal console behavior)
-//!   suspend unavailable→ IdleSuspendACSeconds=0     (never attempt → no wedge)
-//! Dim stays at 900 either way (harmless, wakes on input).
-//!
-//! Also appends `--disable-gpu-process-crash-limit` to
-//! steamwebhelper_sniper_wrap.sh (Steam reverts it on updates; the in-session
-//! watchdog re-asserts every 120s) so a CEF GPU context-loss respawns with GPU
-//! instead of black/software (the desktop daemon's proven fix).
-//!
-//! Usage: game-mode-steam-config apply
-//! Exit: 0 applied/no-op, 2 = Steam is running (unsafe to edit), 1 = error.
-
 use game_mode::steam::{self, CEF_FLAG};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -63,7 +43,6 @@ fn apply() -> ExitCode {
         }
     );
 
-    // The global config plus each account's mirror of the same keys.
     let mut targets = vec![steam::steam_root(&home).join("config/config.vdf")];
     targets.extend(
         steam::user_config_dirs(&home)
@@ -103,8 +82,6 @@ fn apply() -> ExitCode {
     }
 }
 
-/// Suspend is available iff suspend.target isn't masked and no active
-/// sleep-block inhibitor exists.
 fn suspend_available() -> bool {
     let masked = Command::new("systemctl")
         .args(["is-enabled", "suspend.target"])
@@ -114,7 +91,6 @@ fn suspend_available() -> bool {
     if masked {
         return false;
     }
-    // `systemd-inhibit --list --mode=block` lines with WHAT containing "sleep"
     let blocked = Command::new("systemd-inhibit")
         .args(["--list", "--mode=block"])
         .output()
@@ -127,17 +103,9 @@ fn suspend_available() -> bool {
     !blocked
 }
 
-// ---------------------------------------------------------------------------
-// Pure patchers (unit-tested below)
-// ---------------------------------------------------------------------------
-
-/// Set the two idle keys inside the `"System" { ... }` block of a text-KeyValues
-/// VDF. Replaces existing values; inserts missing keys at the top of the block.
-/// Returns the new text, or `None` if no `"System"` block exists.
 pub fn patch_idle_keys(text: &str, dim: &str, suspend: &str) -> Option<String> {
     let sys_pos = text.find("\"System\"")?;
     let open = text[sys_pos..].find('{')? + sys_pos;
-    // find the matching close brace of the System block
     let mut depth = 0usize;
     let mut close = None;
     for (i, ch) in text[open..].char_indices() {
@@ -159,7 +127,6 @@ pub fn patch_idle_keys(text: &str, dim: &str, suspend: &str) -> Option<String> {
     for (key, value) in [
         ("IdleBacklightDimACSeconds", dim),
         ("IdleSuspendACSeconds", suspend),
-        // battery variants: keep consistent on a desktop (no battery, harmless)
         ("IdleBacklightDimBatterySeconds", dim),
         ("IdleSuspendBatterySeconds", suspend),
     ] {
@@ -173,13 +140,10 @@ pub fn patch_idle_keys(text: &str, dim: &str, suspend: &str) -> Option<String> {
     Some(out)
 }
 
-/// Replace `"key"  "..."` in a KeyValues block, or insert it after the leading
-/// newline if absent.
 fn set_kv(block: &str, key: &str, value: &str) -> String {
     let needle = format!("\"{key}\"");
     if let Some(kpos) = block.find(&needle) {
         let after_key = kpos + needle.len();
-        // value = next quoted string
         if let Some(vstart_rel) = block[after_key..].find('"') {
             let vstart = after_key + vstart_rel + 1;
             if let Some(vlen) = block[vstart..].find('"') {
@@ -192,7 +156,6 @@ fn set_kv(block: &str, key: &str, value: &str) -> String {
         }
         block.to_string()
     } else {
-        // insert right after the first newline in the block
         let insert_at = block.find('\n').map(|i| i + 1).unwrap_or(0);
         let indent = "\t\t\t\t\t";
         let mut out = String::with_capacity(block.len() + 64);
@@ -202,10 +165,6 @@ fn set_kv(block: &str, key: &str, value: &str) -> String {
         out
     }
 }
-
-// ---------------------------------------------------------------------------
-// File wrappers (backup + write)
-// ---------------------------------------------------------------------------
 
 fn patch_idle_keys_file(path: &Path, dim: &str, suspend: &str) -> Result<bool, String> {
     let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
@@ -249,7 +208,6 @@ mod tests {
         assert!(out.contains("\"IdleSuspendACSeconds\"\t\t\"0\""), "{out}");
         assert!(out.contains("\"IdleSuspendBatterySeconds\"\t\t\"0\""));
         assert!(out.contains("\"IdleBacklightDimACSeconds\"\t\t\"900\""));
-        // untouched neighbours
         assert!(out.contains("\"WifiPowerManagementEnabled\"\t\t\"1\""));
         assert!(out.contains("\"DisplayBrightness\"\t\t\"0.75\""));
     }
@@ -285,7 +243,6 @@ mod tests {
 
     #[test]
     fn does_not_touch_other_blocks_keys() {
-        // A same-named key OUTSIDE System must not be modified.
         let vdf = "\"Root\"\n{\n\t\"Other\"\n\t{\n\t\t\"IdleSuspendACSeconds\"\t\t\"1234\"\n\t}\n\t\"System\"\n\t{\n\t\t\"IdleSuspendACSeconds\"\t\t\"3600\"\n\t}\n}\n";
         let out = patch_idle_keys(vdf, "900", "0").unwrap();
         assert!(

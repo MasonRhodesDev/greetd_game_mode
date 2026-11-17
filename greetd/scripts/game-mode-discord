@@ -1,15 +1,2 @@
 #!/bin/bash
-# Non-Steam shortcut target: launch Discord under Steam's reaper so gamescope
-# tags and presents its window natively and Steam Input's desktop layout
-# drives the UI (right stick/pad = mouse, A = click).
-#
-# Discord is NOT autostarted by the session: launching it from Big Picture
-# the first time each session makes it voice-ready; switching back to BP
-# (Guide button) leaves it running in the background, so voice and the
-# discover-overlay stay live. "Stop"/"Exit" in BP closes it.
-#
-# Env fixes:
-#  - WAYLAND_DISPLAY unset: Electron must take gamescope's Xwayland display.
-#  - LD_PRELOAD unset: Steam injects gameoverlayrenderer.so into shortcut
-#    launches, which crashes Electron's zygote (broken pipe at startup).
 exec env -u WAYLAND_DISPLAY -u LD_PRELOAD discord
