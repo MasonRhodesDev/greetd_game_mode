@@ -1,9 +1,7 @@
 [advisories]
 version = 2
 yanked = "deny"
-ignore = [
-    { id = "RUSTSEC-2025-0119", reason = "number_prefix unmaintained; formatting-only dep of indicatif progress bars" },
-]
+ignore = []
 
 [licenses]
 version = 2
